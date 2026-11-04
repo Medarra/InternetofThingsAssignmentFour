@@ -1,18 +1,96 @@
-#include <Arduino.h>
+#include "M5Unified.h"
 
-// put function declarations here:
-int myFunction(int, int);
+// Include required for the ENV IV module
+#include <M5UnitENV.h>
 
-void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+// I2C Pins for the external I2C port
+#define EXT_SDA 32
+#define EXT_SCL 33
+
+// SHT30 Humidity and Temperature I2C sensor
+SHT3X sht3x;
+// QMP6988 Pressure and Temperature I2C sensor
+QMP6988 qmp;
+// Flag that ENV was set up
+bool env_ok = false;
+
+
+// Function Prototypes:
+void setup_unit_env(void);
+void read_unit_env(void);
+
+void setup()
+{
+  auto cfg = M5.config();
+  M5.begin(cfg);
+  Serial.begin(115200);
+  Serial.println("** Starting Setup **");
+
+  // Set up the ENV Sensor
+  setup_unit_env();
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
+void loop()
+{
+  Serial.println("** Running Loop **");
+  read_unit_env();
+  delay(1000);
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+void setup_unit_env()
+{
+  Serial.println("** Setting Up Unit ENV **");
+
+  if (!qmp.begin(&Wire, QMP6988_SLAVE_ADDRESS_L, EXT_SDA, EXT_SCL, 400000U))
+  {
+    Serial.println("Couldn't find QMP6988");
+    while (1)
+      delay(1);
+  }
+
+  if (!sht3x.begin(&Wire, SHT3X_I2C_ADDR, EXT_SDA, EXT_SCL, 400000U))
+  {
+    Serial.println("Couldn't find SHT3X");
+    while (1)
+      delay(1);
+  }
+
+  env_ok = true;
+}
+
+void read_unit_env(void)
+{
+  if (not env_ok)
+  {
+    Serial.println("**** Unit ENV not set up ****");
+    return;
+  }
+
+  if (sht3x.update())
+  {
+    Serial.println("-----SHT3X-----");
+    Serial.print("Temperature: ");
+    Serial.print(sht3x.cTemp);
+    Serial.println(" degrees C");
+    Serial.print("Humidity: ");
+    Serial.print(sht3x.humidity);
+    Serial.println("% rH");
+    Serial.println("-------------\r\n");
+  }
+
+  if (qmp.update())
+  {
+    Serial.println("-----QMP6988-----");
+    Serial.print(F("Temperature: "));
+    Serial.print(qmp.cTemp);
+    Serial.println(" *C");
+    Serial.print(F("Pressure: "));
+    Serial.print(qmp.pressure);
+    Serial.println(" Pa");
+    Serial.print(F("Approx altitude: "));
+    Serial.print(qmp.altitude);
+    Serial.println(" m");
+    Serial.println("-------------\r\n");
+  }
+
 }
