@@ -433,36 +433,25 @@ void sendStatusRequest(void) {
  */
 void receiveStatusRequest(String command) {
   // Check status response
-  if (command.length() != 6) {
-    Serial.println("Invalid status response length. Expected 6 characters.");
-    return;
-  }
-
-  // Check all sensor states and update the corresponding flags
-  for (int i = 1; i < 6; i++) {
-    char sensor = command[i];
-    char state = command[i + 1];
-
-    switch (sensor) {
-      case 'T':
-        send_temperature = (state == 'T');
-        break;
-      case 'H':
-        send_humidity = (state == 'T');
-        break;
-      case 'A':
-        send_accelerometer = (state == 'T');
-        break;
-      case 'L':
-        send_altitude = (state == 'T');
-        break;
-      case 'B':
-        send_battery = (state == 'T');
-        break;
-      default:
-        Serial.println("Invalid sensor identifier in status response.");
+  if (command.length() != 6)
+    {
+        Serial.println("Invalid status response length.");
+        return;
     }
-  }
+
+    if (command[0] != 'A')
+    {
+        Serial.println("Not an acquisition status packet.");
+        return;
+    }
+
+    send_temperature   = (command[1] == 'T');
+    send_humidity      = (command[2] == 'T');
+    send_accelerometer = (command[3] == 'T');
+    send_altitude      = (command[4] == 'T');
+    send_battery       = (command[5] == 'T');
+
+  Serial.println("Sensor states restored: " + command);
 }
 
 /**
