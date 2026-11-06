@@ -3,7 +3,6 @@
 #include <PubSubClient.h>
 #include <string.h>
 #include "M5Unified.h"
-// Include required for the ENV IV module
 #include <M5UnitENV.h>
 
 const char* ssid = "MedarraBellis";
@@ -16,13 +15,6 @@ const int mqtt_port = 8883;
 
 
 const std::string mqtt_base = "SENG3030/Wednesday/" + mqtt_username + "/DeviceController/";
-const std::string mqtt_battery = mqtt_base + "battery";
-
-const std::string mqtt_bmp_temperature = mqtt_base + "qmp/temperature";
-const std::string mqtt_bmp_pressure = mqtt_base + "qmp/pressure";
-
-const std::string mqtt_sht_temperature = mqtt_base + "sht30/temperature";
-const std::string mqtt_sht_humidity = mqtt_base + "sht30/humidity";
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
@@ -56,14 +48,6 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 // I2C Pins for the external I2C port
 #define EXT_SDA 32
 #define EXT_SCL 33
-
-// SHT30 Humidity and Temperature I2C sensor
-SHT3X sht3x;
-// QMP6988 Pressure and Temperature I2C sensor
-QMP6988 qmp;
-// Flag that ENV was set up
-bool env_ok = false;
-
 
 const int MENU_SIZE = 10;
 
