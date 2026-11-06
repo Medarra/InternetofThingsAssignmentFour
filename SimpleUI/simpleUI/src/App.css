@@ -1,0 +1,219 @@
+/* Global Reset and Body Styling */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #1a1a1c; /* Deep Charcoal/Dark Gray background */
+  color: #e2e8f0; /* Crisp Off-White Text */
+  padding: 20px;
+  margin: 0;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Header Banner Components */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #27272a; /* Slate Gray Container */
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  margin-bottom: 20px;
+  border-left: 5px solid #dc2626; /* Crimson Red Accent Bar */
+}
+
+.header h2 {
+  margin: 0;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+/* Connection Badges */
+.status {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status.connecting { background: #71717a; color: #f4f4f5; } /* Slate Gray */
+.status.connected { background: #dc2626; color: #ffffff; } /* Bright Crimson Red */
+.status.disconnected { background: #7f1d1d; color: #fca5a5; } /* Deep Muted Maroon */
+
+/* Dashboard Cards Grid Layout */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  align-items: stretch; /* Forces all cards to match the height of the tallest card */
+}
+
+
+.card {
+  background: #27272a;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
+  border-top: 4px solid #b91c1c;
+  box-sizing: border-box;
+  
+  /* NEW GRID ALIGNMENT TECHNIQUE */
+  display: grid;
+  grid-template-rows: auto auto 1fr auto; /* Rows: Title, Topic, Payload (fills rest), Timestamp */
+  gap: 12px;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+.card h3 {
+  margin: 0;
+  color: #ef4444; 
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.topic-string {
+  font-size: 0.75rem; 
+  color: #a1a1aa; 
+  font-family: monospace;
+  word-break: break-all;
+  margin: 0;
+  
+  /* ALLOWS GROWTH: No height or overflow hidden to prevent cutoff */
+}
+.payload {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  background: #18181b; 
+  color: #f4f4f5;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #3f3f46;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  
+  display: flex;
+  align-items: center; 
+  justify-content: center;
+  min-height: 80px;
+
+  /* FIXED STRING WRAPPING PROPERTIES */
+  word-break: keep-all;    /* Strictly bars single words from splitting across rows */
+  overflow-wrap: break-word; /* Allows full strings to drop a line safely at white spaces */
+  text-align: center;       /* Balances split words nicely if they wrap onto row 2 */
+}
+
+.timestamp {
+  font-size: 0.75rem;
+  color: #71717a;
+  text-align: right;
+  margin: 0;
+}
+
+/* Historical Feed & Checklist Section */
+.log-section {
+  background: #27272a; /* Slate Gray Container */
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
+  margin-top: 30px;
+}
+
+.log-section h3 {
+  margin-top: 0;
+  color: #ffffff;
+}
+
+.filter-checklist {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  background: #18181b; /* Dark Gray Inner Container */
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: 1px solid #3f3f46;
+}
+
+.filter-checklist label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #e4e4e7;
+}
+
+/* Checkbox Style override tint */
+.filter-checklist input[type="checkbox"] {
+  accent-color: #dc2626; /* Colors the checkbox marker crimson red */
+}
+
+/* Logging Table Layout */
+.log-table-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  background: #18181b;
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.log-table th {
+  background: #3f3f46; /* Medium Slate Header Row */
+  color: #ffffff;
+  padding: 12px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 2px solid #52525b;
+}
+
+.log-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #27272a;
+}
+
+.log-name {
+  font-weight: bold;
+  color: #f4f4f5;
+}
+
+.log-payload {
+  font-family: monospace;
+  color: #f87171; /* Pale Red for message readability inside dark table text */
+}
+
+.log-time {
+  color: #71717a;
+  text-align: right;
+  font-size: 0.8rem;
+}
+
+.empty-log {
+  text-align: center;
+  color: #71717a;
+  padding: 30px !important;
+  font-style: italic;
+}
+
+/* Interactive Color-coded left-borders for specific telemetry sorting rows */
+.row-DeviceController { border-left: 4px solid #ef4444; } /* Crimson Red Line */
+.row-endpoint2 { border-left: 4px solid #a1a1aa; }        /* Light Gray Line */
+.row-endpoint3 { border-left: 4px solid #7f1d1d; }        /* Dark Burgundy Line */

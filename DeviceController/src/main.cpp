@@ -1,9 +1,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
-#include <string.h>
 #include "M5Unified.h"
-// Include required for the ENV IV module
 #include <M5UnitENV.h>
 
 const char* ssid = "MedarraBellis";
@@ -16,13 +14,8 @@ const int mqtt_port = 8883;
 
 
 const std::string mqtt_base = "SENG3030/Wednesday/" + mqtt_username + "/DeviceController/";
-const std::string mqtt_battery = mqtt_base + "battery";
-
-const std::string mqtt_bmp_temperature = mqtt_base + "qmp/temperature";
-const std::string mqtt_bmp_pressure = mqtt_base + "qmp/pressure";
-
-const std::string mqtt_sht_temperature = mqtt_base + "sht30/temperature";
-const std::string mqtt_sht_humidity = mqtt_base + "sht30/humidity";
+const std::string acqusition_topic = "SENG3030/Wednesday/tkosatkina4510/AcquisitionDevice/#";
+const std::string display_topic = "SENG3030/Wednesday/kmurawsky0383/DisplayDevice/#";
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
@@ -57,21 +50,60 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 #define EXT_SDA 32
 #define EXT_SCL 33
 
-// SHT30 Humidity and Temperature I2C sensor
-SHT3X sht3x;
-// QMP6988 Pressure and Temperature I2C sensor
-QMP6988 qmp;
-// Flag that ENV was set up
-bool env_ok = false;
+const String status_request = "STATUS_REQUEST";
 
+const int MENU_SIZE = 10;
+
+String menuItems[MENU_SIZE] = {
+  "Acq. Temperature",
+  "Acq. Humidity",
+  "Acq. Acceleration",
+  "Acq. Altitude",
+  "Acq. Battery Level",
+  "Disp. Temperature",
+  "Disp. Humidity",
+  "Disp. Acceleration",
+  "Disp. Altitude",
+  "Disp. Battery Level"
+};
+
+const String mqttCommands[MENU_SIZE] = {
+  "AT",
+  "AH",
+  "AA", 
+  "AL",
+  "AB",
+  "DT",
+  "DH",
+  "DA",
+  "DL",
+  "DB"
+};
+
+bool menuEnabled[MENU_SIZE] = {
+  true,  // Acquire Temperature
+  true,  // Acquire Humidity
+  true, // Acquire Acceleration
+  true,  // Acquire Altitude
+  true,  // Acquire Battery Level
+  true,  // Display Temperature
+  true,  // Display Humidity
+  true, // Display Acceleration
+  true,  // Display Altitude
+  true   // Display Battery Level
+};
+
+int selectedItem = 0;
 
 // Function Prototypes:
-void setup_unit_env(void);
-void read_unit_env(void);
 void read_button_data(void);
 void setup_wifi(void);
 void connectToMQTTBroker(void);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
+void drawMenu(void);
+void publishMenuState(int item);
+void sendAcquireStatus(void);
+void sendDisplayStatus(void);
 
 void setup()
 {
@@ -79,9 +111,6 @@ void setup()
   M5.begin(cfg);
   Serial.begin(115200);
   Serial.println("** Starting Setup **");
-
-  // Set up the ENV Sensor
-  setup_unit_env();
 
   setup_wifi();
 
@@ -92,41 +121,22 @@ void setup()
   client.setKeepAlive(60);
   client.setCallback(mqttCallback);
   connectToMQTTBroker();
+
+  M5.Display.setRotation(3);
+  M5.Display.setTextSize(1.5);
+  drawMenu();
 }
 
 void loop()
 {
-  Serial.println("** Running Loop **");
-  read_unit_env();
   read_button_data();
-  delay(1000);
+  delay(100);
 
   if (!client.connected()) {
       connectToMQTTBroker();
   }
   // Required for subscriptions to fire callback
   client.loop();
-}
-
-void setup_unit_env()
-{
-  Serial.println("** Setting Up Unit ENV **");
-
-  if (!qmp.begin(&Wire, QMP6988_SLAVE_ADDRESS_L, EXT_SDA, EXT_SCL, 400000U))
-  {
-    Serial.println("Couldn't find QMP6988");
-    while (1)
-      delay(1);
-  }
-
-  if (!sht3x.begin(&Wire, SHT3X_I2C_ADDR, EXT_SDA, EXT_SCL, 400000U))
-  {
-    Serial.println("Couldn't find SHT3X");
-    while (1)
-      delay(1);
-  }
-
-  env_ok = true;
 }
 
 void setup_wifi() {
@@ -155,9 +165,10 @@ void connectToMQTTBroker() {
         Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
         if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
             Serial.println("Connected to MQTT broker");
-            client.subscribe((mqtt_base + "#").c_str());
-            // Publish message upon successful connection
-            client.publish((mqtt_base + "hello").c_str(), "Hello SENG3030!");
+            client.subscribe(acqusition_topic.c_str());
+            client.subscribe(display_topic.c_str());
+
+            client.publish(mqtt_base.c_str(), status_request.c_str());
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
             Serial.print(client.state());
@@ -170,72 +181,162 @@ void connectToMQTTBroker() {
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
     Serial.print("Message received on topic: ");
     Serial.println(topic);
-    Serial.print("Message:");
+
+    String message = "";
+
     for (unsigned int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
+        message += (char) payload[i];
     }
-    Serial.println();
+
+    Serial.print("Message:");
+    Serial.println(message);
     Serial.println("-----------------------");
+
+    String topicStr = String(topic);
+
+    if (message == status_request) {
+      if (topicStr.indexOf("AcquisitionDevice") >= 0)
+      {
+        sendAcquireStatus();
+      }
+      else if (topicStr.indexOf("DisplayDevice") >= 0)
+      {
+        sendDisplayStatus();
+      }
+
+      return;
+    }
+
+    if (message.length() == 6 &&
+    message[0] == 'A')
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            menuEnabled[i] =
+                (message[i + 1] == 'T');
+        }
+
+        drawMenu();
+        return;
+    }
+
+    if (message.length() == 6 &&
+    message[0] == 'D')
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            menuEnabled[i + 5] =
+                (message[i + 1] == 'T');
+        }
+
+        drawMenu();
+        return;
+    }
 }
 
-
-
-void read_unit_env(void)
-{
-  if (not env_ok)
-  {
-    Serial.println("**** Unit ENV not set up ****");
-    return;
-  }
-
-  if (sht3x.update())
-  {
-    Serial.println("-----SHT3X-----");
-    Serial.print("Temperature: ");
-    Serial.print(sht3x.cTemp);
-    Serial.println(" degrees C");
-    Serial.print("Humidity: ");
-    Serial.print(sht3x.humidity);
-    Serial.println("% rH");
-    Serial.println("-------------\r\n");
-  }
-
-  if (qmp.update())
-  {
-    Serial.println("-----QMP6988-----");
-    Serial.print(F("Temperature: "));
-    Serial.print(qmp.cTemp);
-    Serial.println(" *C");
-    Serial.print(F("Pressure: "));
-    Serial.print(qmp.pressure);
-    Serial.println(" Pa");
-    Serial.print(F("Approx altitude: "));
-    Serial.print(qmp.altitude);
-    Serial.println(" m");
-    Serial.println("-------------\r\n");
-  }
-
-}
 
 void read_button_data(void)
 {
-  M5.update(); // Required to get states
-  if (M5.BtnA.wasPressed()) {
-  Serial.println("A Btn Pressed");
+  M5.update();
+
+  if (M5.BtnA.wasPressed())
+  {
+    selectedItem++;
+
+    if (selectedItem >= MENU_SIZE)
+    {
+      selectedItem = 0; // Wrap around to the first item
+    }
+
+    drawMenu();
   }
-  if (M5.BtnA.wasReleased()) {
-  Serial.println("A Btn Released");
+
+  if (M5.BtnB.wasPressed())
+  {
+    menuEnabled[selectedItem] = !menuEnabled[selectedItem]; // Toggle the enabled state of the selected item
+    publishMenuState(selectedItem); // Publish the new state to MQTT
+    drawMenu();
   }
-  if (M5.BtnB.wasPressed()) {
-  Serial.println("B Btn Pressed");
+}
+
+void drawMenu()
+{
+  M5.Display.clear();
+
+  int startItem = (selectedItem / 6) * 6; // Calculate the starting item index for the current page
+
+  for (int i = 0; i < 6; i++)
+  {
+    int index = startItem + i;
+
+    if (index >= MENU_SIZE)
+    {
+      break; // Don't draw items beyond the menu size
+    }
+
+    String line;
+
+    if (index == selectedItem)
+    {
+      line = "> ";
+    }
+    else
+    {
+      line = "  ";
+    }
+
+    line += menuEnabled[index] ? "[X] " : "[ ] ";
+    line += menuItems[index];
+
+    M5.Display.drawString(line, 0, i * 20); // Adjust the y-coordinate based on the line number
   }
-  if (M5.BtnB.wasReleased()) {
-  Serial.println("B Btn Released");
+}
+
+void publishMenuState(int item)
+{
+  String message = mqttCommands[item];
+
+  if (menuEnabled[item])
+  {
+    message += "T";
   }
-  if (M5.BtnPWR.wasClicked()) {
-  Serial.println("PWR Btn Clicked");
+  else
+  {
+    message += "F";
   }
-  if (M5.BtnPWR.wasHold()) {
-  Serial.println("PWR Btn Hold");
+
+  Serial.print("Publishing: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
+}
+
+void sendAcquireStatus(void)
+{
+  String message = "A";
+
+  for (int i = 0; i < 5; i++)
+  {
+    message += menuEnabled[i] ? "T" : "F";
   }
+
+  Serial.print("Publishing Acquire Status: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
+}
+
+void sendDisplayStatus(void)
+{
+  String message = "D";
+
+  for (int i = 5; i < 10; i++)
+  {
+    message += menuEnabled[i] ? "T" : "F";
+  }
+
+  Serial.print("Publishing Display Status: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
 }
