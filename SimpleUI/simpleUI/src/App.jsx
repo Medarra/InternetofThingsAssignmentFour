@@ -98,11 +98,9 @@ export default function App() {
 
         // --- Checks which endpoint message came from. Display device doesn't need to be parsed since it only sends status messages
         const isParsable = ['DeviceController', 'AcquisitionDevice'].includes(targetKey);
+        let parsedValue = "--"
         if (isParsable){
-          const parsedValue = parseMessage(payloadStr)
-        }
-        else{
-          const parsedValue = "--"  //Default value for if message is not parsed
+          parsedValue = parseMessage(payloadStr)
         }
 
         // Update the logs
@@ -242,29 +240,32 @@ function parseMessage(rawMessage) {
   // Parsing for Device Controller
   if (cleanStr.length === 3) {
     // Handle character 1
+    let key1 = "--"
     if (cleanStr[0] === 'A'){ //If the first character is A map to A_pos1 so that the right A is set
-      const key1 = 'A_pos1';
+      key1 = 'A_pos1';
     }
     else{
-      const key1 = cleanStr[0]; //Else - Map to whichever character is there
+      key1 = cleanStr[0]; //Else - Map to whichever character is there
     }
     const d1 = controllerDict[key1] || cleanStr[0]; //Map to the right word
 
     // Handle character 2
+    let key2 = "--"
     if (cleanStr[1] === 'A'){
-      const key2 = 'A_pos2';  //If second character is A, map to the correct A
+      key2 = 'A_pos2';  //If second character is A, map to the correct A
     }
     else{
-      const key2 = cleanStr[1]; //Map to whichever character is there
+      key2 = cleanStr[1]; //Map to whichever character is there
     }
     const d2 = controllerDict[key2] || cleanStr[1]; //Map to the right word
 
     // Handle the third letter - if T, set directly to 'active' to avoid the issue we have with a
+    let d3 = "--"
     if (cleanStr[2] === 'T'){
-      const d3 = 'Active';
+      d3 = 'Active';
     }
     else{
-      const d3 = controllerDict[cleanStr[2]] || cleanStr[2];
+      d3 = controllerDict[cleanStr[2]] || cleanStr[2];
     }
 
     return `${d1} device | ${d2} | ${d3}`;  //Return the parsed strings
