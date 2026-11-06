@@ -62,6 +62,8 @@ QMP6988 qmp;
 // Sensors initialized flag
 bool env_ok = false;
 
+// Status request flag
+const String status_request = "STATUS_REQUEST";
 
 // Sensor reading intervals (in milliseconds)
 const unsigned long READ_INTERVAL = 30000;
@@ -81,6 +83,7 @@ void setup_wifi(void);
 void connectToMQTTBroker(void);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void publishSensorDataToMQTT(char sensor, float value);
+void sendStatusRequest(void);
 
 /**
  * Function to setup the M5Stack device, initialize sensors, connect to Wi-Fi, 
@@ -293,7 +296,9 @@ void connectToMQTTBroker() {
             Serial.println("Connected to MQTT broker");
             client.subscribe((mqtt_base + mqtt_controller).c_str());
             Serial.printf("Subscribed to topic: %s\n", (mqtt_base + mqtt_controller).c_str());
-    
+
+            client.publish(mqtt_base.c_str(), status_request.c_str());
+
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
             Serial.print(client.state());
@@ -324,7 +329,9 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   // Check command length and corresponding device
   if (command.length() != 3) {
     Serial.println("Invalid command length. Expected 3 characters.");
-    return;
+
+  } else if (command == status_request) {
+    sendStatusRequest();
   }
 
   char device = command[0];
@@ -395,6 +402,30 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   return;
   }
 }
+
+/**
+ * Function to send status request to the Controller Device on request
+ */
+void sendStatusRequest(void) {
+  if (client.connected()) {
+    String message = "";
+    // Temperature/Humidity/Accellerometer/Altitude/Battery
+    char device = 'A';
+    char temp = send_temperature ? 'T' : 'F';
+    char hum = send_humidity ? 'T' : 'F';
+    char accel = send_accelerometer ? 'T' : 'F';
+    char alt = send_altitude ? 'T' : 'F';
+    char batt = send_battery ? 'T' : 'F';
+
+    message = String(device) + temp + hum + accel + alt + batt;
+  
+    client.publish(mqtt_base.c_str(), message.c_str());
+    Serial.println("Status request sent to Controller Device");
+  } else {
+    Serial.println("Cannot send status request. MQTT client not connected.");
+  }
+}
+
 
 /**
  * Helping function to publish sensor data to the MQTT broker. 
