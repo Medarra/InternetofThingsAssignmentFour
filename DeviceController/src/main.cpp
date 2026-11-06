@@ -80,6 +80,19 @@ String menuItems[MENU_SIZE] = {
   "Disp. Battery Level"
 };
 
+const String mqttCommands[MENU_SIZE] = {
+  "AT",
+  "AH",
+  "AA", 
+  "AL",
+  "AB",
+  "DT",
+  "DH",
+  "DA",
+  "DL",
+  "DB"
+};
+
 bool menuEnabled[MENU_SIZE] = {
   true,  // Acquire Temperature
   true,  // Acquire Humidity
@@ -101,6 +114,7 @@ void setup_wifi(void);
 void connectToMQTTBroker(void);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void drawMenu(void);
+void publishMenuState(int item);
 
 void setup()
 {
@@ -203,6 +217,7 @@ void read_button_data(void)
   if (M5.BtnB.wasPressed())
   {
     menuEnabled[selectedItem] = !menuEnabled[selectedItem]; // Toggle the enabled state of the selected item
+    publishMenuState(selectedItem); // Publish the new state to MQTT
     drawMenu();
   }
 }
@@ -238,4 +253,23 @@ void drawMenu()
 
     M5.Display.drawString(line, 0, i * 20); // Adjust the y-coordinate based on the line number
   }
+}
+
+void publishMenuState(int item)
+{
+  String message = mqttCommands[item];
+
+  if (menuEnabled[item])
+  {
+    message += "T";
+  }
+  else
+  {
+    message += "F";
+  }
+
+  Serial.print("Publishing: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
 }
