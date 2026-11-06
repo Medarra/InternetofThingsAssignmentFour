@@ -69,12 +69,9 @@ bool menuEnabled[MENU_SIZE] = {
   true   // Display Battery Level
 };
 
-// I2C Pins for the external I2C port
-#define EXT_SDA 32
-#define EXT_SCL 33
+int selectedPage = 0;
 
-// Flag that ENV was set up
-bool env_ok = false;
+double pages[MENU_SIZE] = { 0, 1, 2, 3, 4};
 
 void read_button_data(void);
 void speaker(void);
@@ -83,6 +80,7 @@ void setup_wifi();
 void connectToMQTTBroker();
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void sendDisplayState(void);
+void drawMenu(void);
 
 void setup()
 {
@@ -94,7 +92,13 @@ void setup()
   Serial.println("** Starting Setup **");
 
   // Set up the display
-  setup_basic_display();
+  M5.Display.setRotation(1);
+  M5.Display.setTextColor(GREEN);
+  M5.Display.setTextDatum(middle_center);
+  M5.Display.setFont(&fonts::FreeSansBold9pt7b);
+  M5.Display.setTextSize(1);
+  M5.Display.setCursor(0, 40);
+  drawMenu();
 
   // MQTT setup
   setup_wifi();
@@ -111,12 +115,12 @@ void setup()
 
 void loop()
 {
-  //read_button_data();
+  read_button_data();
 
   // Also see the draw functions in the 
   // Display example at M5Stack 
 
-  delay(1000);
+  delay(100);
 
   if (!client.connected()) {
         connectToMQTTBroker();
@@ -217,7 +221,6 @@ void sendDisplayState(void)
   client.publish(mqtt_base.c_str(), message.c_str());
 }
 
-
 void setup_basic_display(void)
 {
   M5.Display.clear();
@@ -227,7 +230,6 @@ void setup_basic_display(void)
   M5.Display.setFont(&fonts::FreeSansBold9pt7b);
   M5.Display.setTextSize(1);
   M5.Display.setCursor(0, 40);
-  M5.Display.printf("Example Number: %d\r\n", 10);
 }
 
 void read_button_data(void)
@@ -235,7 +237,15 @@ void read_button_data(void)
   M5.update();  // Required to get states
   if (M5.BtnA.wasPressed()) {
       Serial.println("A Btn Pressed");
-      //
+      // Page through displays
+      selectedPage++;
+      if (selectedPage > MENU_SIZE)
+      {
+        selectedPage = 0;
+      }
+      drawMenu();
+      // Make beep sound
+      speaker();
   }
   if (M5.BtnA.wasReleased()) {
 
@@ -243,18 +253,62 @@ void read_button_data(void)
   }
   if (M5.BtnB.wasPressed()) {
       Serial.println("B Btn Pressed");
-      //
   }
   if (M5.BtnB.wasReleased()) {
       Serial.println("B Btn Released");
   }
   if (M5.BtnPWR.wasClicked()) {
       Serial.println("PWR Btn Clicked");
-      // Make beep sound
-      speaker();
   }
   if (M5.BtnPWR.wasHold()) {
       Serial.println("PWR Btn Hold");
+  }
+}
+
+void drawMenu()
+{
+  M5.Display.clear();
+  M5.Display.setRotation(1);
+  M5.Display.setTextColor(GREEN);
+  M5.Display.setTextDatum(middle_center);
+  M5.Display.setFont(&fonts::FreeSansBold9pt7b);
+  M5.Display.setTextSize(1);
+  M5.Display.setCursor(0, 40);
+
+  switch (selectedPage)
+  {
+    case 0:
+      // display page 0 Hello user!
+      M5.Display.printf("Reading Sensors From: %s\r\n", acqusition_topic.c_str());
+      break;
+    
+    case 1:
+      // display page 1 Tempature
+      M5.Display.printf("Tempature: %.2f\r\n", pages[0]);
+      break;
+
+    case 2:
+      // display page 2 Humidity
+      M5.Display.printf("Humidity: %.2f\r\n", pages[1]);
+      break;
+
+    case 3:
+      // display page 3 Accelerometer
+      M5.Display.printf("Accelerometer: %.2f\r\n", pages[2]);
+      break;
+
+    case 4:
+      // display page 4 Altitude
+      M5.Display.printf("Altitude: %.2f\r\n", pages[3]);
+      break;
+
+    case 5:
+      // display page 5 Battery
+      M5.Display.printf("Battery: %.2f\r\n", pages[4]);
+      break;
+    
+    default:
+      break;
   }
 }
 
