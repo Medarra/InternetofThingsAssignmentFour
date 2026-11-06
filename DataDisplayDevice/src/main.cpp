@@ -1,6 +1,6 @@
 #include "M5Unified.h"
 
-// Include required for the ENV IV module
+// Include required for the ENV III module
 #include <M5UnitENV.h>
 
 // MQTT includes and constants
@@ -9,15 +9,18 @@
 #include <PubSubClient.h>
 #include <string.h>
 
-const char* ssid = "redcedar 18";
-const char* password = "BernieDawe";
+const char* ssid = "Kyle’s IPhone";
+const char* password = "yesyes123";
 std::string mqtt_username = "kmurawsky0383";
 std::string mqtt_password = "0383";
 const char *mqtt_broker = "p07da41d.ala.us-east-1.emqxsl.com";
 
 const int mqtt_port = 8883;
 
-const std::string mqtt_base = "SENG3030/Wednesday/" + mqtt_username + "/";
+const std::string mqtt_base = "SENG3030/Wednesday/" + mqtt_username + "/DisplayDevice/";
+const std::string acqusition_topic = "SENG3030/Wednesday/tkosatkina4510/AcquisitionDevice/#";
+const std::string control_topic = "SENG3030/Wednesday/apalmer2583/DeviceController/#";
+
 const std::string mqtt_battery = mqtt_base + "battery";
 
 const std::string mqtt_bmp_temperature = mqtt_base + "qmp/temperature";
@@ -55,7 +58,21 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 -----END CERTIFICATE-----
 )EOF";
 
+const String status_request = "STATUS_REQUEST";
 
+const int MENU_SIZE = 10;
+bool menuEnabled[MENU_SIZE] = {
+  true,  // Acquire Temperature
+  true,  // Acquire Humidity
+  true, // Acquire Acceleration
+  true,  // Acquire Altitude
+  true,  // Acquire Battery Level
+  true,  // Display Temperature
+  true,  // Display Humidity
+  true, // Display Acceleration
+  true,  // Display Altitude
+  true   // Display Battery Level
+};
 
 // I2C Pins for the external I2C port
 #define EXT_SDA 32
@@ -77,6 +94,7 @@ void setup_basic_display(void);
 void setup_wifi();
 void connectToMQTTBroker();
 void mqttCallback(char *topic, byte *payload, unsigned int length);
+void sendDisplayState(void);
 
 void setup()
 {
@@ -108,13 +126,9 @@ void setup()
 
 void loop()
 {
-  Serial.println("** Running Loop **");
+  //Serial.println("** Running Loop **");
   //read_unit_env();
-  read_button_data();
-  M5.Display.setCursor(0, 40);
-  M5.Display.clear();
-
-  M5.Display.printf("Example Number: %d\r\n", 10);
+  //read_button_data();
 
   // Also see the draw functions in the 
   // Display example at M5Stack 
@@ -155,9 +169,10 @@ void connectToMQTTBroker() {
         Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
         if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
             Serial.println("Connected to MQTT broker");
-            client.subscribe((mqtt_base + "#").c_str());
-            // Publish message upon successful connection
-            client.publish((mqtt_base + "hello").c_str(), "Hello SENG3030!");
+
+            client.subscribe(acqusition_topic.c_str());
+            client.subscribe(control_topic.c_str());
+            client.publish(mqtt_base.c_str(), status_request.c_str());
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
             Serial.print(client.state());
@@ -170,22 +185,59 @@ void connectToMQTTBroker() {
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
     Serial.print("Message received on topic: ");
     Serial.println(topic);
+
+    String message = "";
+
     Serial.print("Message:");
     for (unsigned int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
+        //Serial.print((char) payload[i]);
+        message += (char) payload[i];
     }
-    Serial.println();
+    Serial.println(message);
     Serial.println("-----------------------");
+
+    // A4
+    String topicStr = String(topic);
+
+    // Check which device is sending a message
+    if (topicStr.indexOf("DeviceController") >= 0) {
+      // Check to make sure the message is for our device D
+      if (message[0] == 'D')
+      {
+        // Parse and change display appropraitely 
+
+      }
+      else if (message == status_request)
+      {
+        // Send current display state
+        sendDisplayState();
+      }
+    } // Else the message is from the AcquisitionDevice
+    // Check to make sure 
+    // Parse and display sensor info
+
+}
+
+void sendDisplayState(void)
+{
+  //if (client.connected())
+
+    String message = "Stuff";
+    client.publish(mqtt_base.c_str(), message.c_str());
 }
 
 
 void setup_basic_display(void)
 {
+  M5.Display.clear();
   M5.Display.setRotation(1);
   M5.Display.setTextColor(GREEN);
   M5.Display.setTextDatum(middle_center);
   M5.Display.setFont(&fonts::FreeSansBold9pt7b);
   M5.Display.setTextSize(1);
+  M5.Display.setCursor(0, 40);
+  M5.Display.printf("Example Number: %d\r\n", 10);
+
 }
 
 void setup_unit_env()
