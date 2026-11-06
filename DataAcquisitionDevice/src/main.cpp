@@ -84,13 +84,13 @@ void connectToMQTTBroker(void);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void publishSensorDataToMQTT(char sensor, float value);
 void sendStatusRequest(void);
+void receiveStatusRequest(String command);
 
 /**
  * Function to setup the M5Stack device, initialize sensors, connect to Wi-Fi, 
  * and set up MQTT communication.
  */
-void setup()
-{
+void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
 
@@ -297,7 +297,7 @@ void connectToMQTTBroker() {
             client.subscribe((mqtt_base + mqtt_controller).c_str());
             Serial.printf("Subscribed to topic: %s\n", (mqtt_base + mqtt_controller).c_str());
 
-            client.publish(mqtt_base.c_str(), status_request.c_str());
+            client.publish(mqtt_data.c_str(), status_request.c_str());
 
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
@@ -327,11 +327,13 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   Serial.printf("Received command: %s\n", command.c_str());
 
   // Check command length and corresponding device
-  if (command.length() != 3) {
-    Serial.println("Invalid command length. Expected 3 characters.");
-
-  } else if (command == status_request) {
+  if (command == status_request) {
     sendStatusRequest();
+  } else if (command.length() == 6) {
+    receiveStatusRequest(command);
+  } else if (command.length() != 3) {
+    Serial.println("Invalid command length. Expected 3 characters.");
+    return;
   }
 
   char device = command[0];
@@ -419,13 +421,49 @@ void sendStatusRequest(void) {
 
     message = String(device) + temp + hum + accel + alt + batt;
   
-    client.publish(mqtt_base.c_str(), message.c_str());
-    Serial.println("Status request sent to Controller Device");
+    client.publish(mqtt_data.c_str(), message.c_str());
+    Serial.println("Status request sent to Controller Device: " + message);
   } else {
     Serial.println("Cannot send status request. MQTT client not connected.");
   }
 }
 
+/**
+ * Function to receive status request from the Controller Device
+ */
+void receiveStatusRequest(String command) {
+  // Check status response
+  if (command.length() != 6) {
+    Serial.println("Invalid status response length. Expected 6 characters.");
+    return;
+  }
+
+  // Check all sensor states and update the corresponding flags
+  for (int i = 1; i < 6; i++) {
+    char sensor = command[i];
+    char state = command[i + 1];
+
+    switch (sensor) {
+      case 'T':
+        send_temperature = (state == 'T');
+        break;
+      case 'H':
+        send_humidity = (state == 'T');
+        break;
+      case 'A':
+        send_accelerometer = (state == 'T');
+        break;
+      case 'L':
+        send_altitude = (state == 'T');
+        break;
+      case 'B':
+        send_battery = (state == 'T');
+        break;
+      default:
+        Serial.println("Invalid sensor identifier in status response.");
+    }
+  }
+}
 
 /**
  * Helping function to publish sensor data to the MQTT broker. 
