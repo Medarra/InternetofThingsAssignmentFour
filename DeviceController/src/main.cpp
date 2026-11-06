@@ -68,16 +68,16 @@ bool env_ok = false;
 const int MENU_SIZE = 10;
 
 String menuItems[MENU_SIZE] = {
-  "Acquire Temperature",
-  "Acquire Humidity",
-  "Acquire Acceleration",
-  "Acquire Altitude",
-  "Acquire Battery Level",
-  "Display Temperature",
-  "Display Humidity",
-  "Display Acceleration",
-  "Display Altitude",
-  "Display Battery Level"
+  "Acq. Temperature",
+  "Acq. Humidity",
+  "Acq. Acceleration",
+  "Acq. Altitude",
+  "Acq. Battery Level",
+  "Disp. Temperature",
+  "Disp. Humidity",
+  "Disp. Acceleration",
+  "Disp. Altitude",
+  "Disp. Battery Level"
 };
 
 bool menuEnabled[MENU_SIZE] = {
@@ -119,7 +119,8 @@ void setup()
   client.setCallback(mqttCallback);
   connectToMQTTBroker();
 
-  M5.Display.setTextSize(2);
+  M5.Display.setRotation(3);
+  M5.Display.setTextSize(1.5);
   drawMenu();
 }
 
@@ -210,9 +211,9 @@ void drawMenu()
 {
   M5.Display.clear();
 
-  int startItem = (selectedItem / 4) * 4; // Calculate the starting item index for the current page
+  int startItem = (selectedItem / 6) * 6; // Calculate the starting item index for the current page
 
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < 6; i++)
   {
     int index = startItem + i;
 
