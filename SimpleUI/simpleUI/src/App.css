@@ -49,18 +49,24 @@ body {
 /* Dashboard Cards Grid Layout */
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* FORCES exactly 3 equal columns on a single line */
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+  align-items: stretch; /* Forces all cards to match the height of the tallest card */
 }
 
 
 .card {
-  background: #27272a; /* Slate Gray Card */
+  background: #27272a;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
-  border-top: 4px solid #b91c1c; /* Crimson Red Header Trim */
-  transition: transform 0.2s ease;
+  border-top: 4px solid #b91c1c;
+  box-sizing: border-box;
+  
+  /* NEW GRID ALIGNMENT TECHNIQUE */
+  display: grid;
+  grid-template-rows: auto auto 1fr auto; /* Rows: Title, Topic, Payload (fills rest), Timestamp */
+  gap: 12px;
 }
 
 .card:hover {
@@ -68,8 +74,8 @@ body {
 }
 
 .card h3 {
-  margin-top: 0;
-  color: #ef4444; /* Light Crimson for Title Pop */
+  margin: 0;
+  color: #ef4444; 
   font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -77,30 +83,40 @@ body {
 
 .topic-string {
   font-size: 0.75rem; 
-  color: #a1a1aa; /* Secondary Gray Text */
-  margin-bottom: 12px;
-  word-break: break-all;
+  color: #a1a1aa; 
   font-family: monospace;
+  word-break: break-all;
+  margin: 0;
+  
+  /* ALLOWS GROWTH: No height or overflow hidden to prevent cutoff */
 }
-
 .payload {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  background: #18181b; /* Rich dark layout for the terminal output box */
+  background: #18181b; 
   color: #f4f4f5;
   padding: 15px;
   border-radius: 6px;
   border: 1px solid #3f3f46;
-  min-height: 40px;
-  word-break: break-all;
   white-space: pre-wrap;
   font-size: 0.9rem;
+  box-sizing: border-box;
+  
+  display: flex;
+  align-items: center; 
+  justify-content: center;
+  min-height: 80px;
+
+  /* FIXED STRING WRAPPING PROPERTIES */
+  word-break: keep-all;    /* Strictly bars single words from splitting across rows */
+  overflow-wrap: break-word; /* Allows full strings to drop a line safely at white spaces */
+  text-align: center;       /* Balances split words nicely if they wrap onto row 2 */
 }
 
 .timestamp {
   font-size: 0.75rem;
   color: #71717a;
-  margin-top: 10px;
   text-align: right;
+  margin: 0;
 }
 
 /* Historical Feed & Checklist Section */
