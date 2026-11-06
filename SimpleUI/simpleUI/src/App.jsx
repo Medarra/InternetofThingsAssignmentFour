@@ -19,112 +19,118 @@ const OPTIONS = {
 };
 const BASE_TOPIC = "SENG3030/Wednesday/"; //Base topic string
 const ENDPOINTS = [
-  BASE_TOPIC + "apalmer2583/DeviceController/", //Aly's endpoint
-  BASE_TOPIC + "kmurawsky0383/DisplayDevice/",                              //Kyle's endpoint
-  BASE_TOPIC + "tkosatkina4510/AcquisitionDevice/"                               //Tatiana's endpoint
+  BASE_TOPIC + "apalmer2583/DeviceController/",     //Aly's endpoint - Device Controller
+  BASE_TOPIC + "kmurawsky0383/DisplayDevice/",      //Kyle's endpoint - Display Device
+  BASE_TOPIC + "tkosatkina4510/AcquisitionDevice/"  //Tatiana's endpoint - Acquisition Device
 ];
 
 export default function App() {
-  // --- Use states for the status messages
-  const [status, setStatus] = useState({ text: 'Connecting...', class: 'connecting' });
-  const [messages, setMessages] = useState({
+  //--- USE STATES
+  const [status, setStatus] = useState({ text: 'Connecting...', class: 'connecting' }); //Connection status
+  const [messages, setMessages] = useState({                                            //Latest data status
     DeviceController: { payload: 'No data received yet', time: '--:--:--' },
     DisplayDevice: { payload: 'No data received yet', time: '--:--:--' },
     AcquisitionDevice: { payload: 'No data received yet', time: '--:--:--' },
   });
-
-  // NEW STATES: Running list of historical logs & target checkbox filter settings
-  const [logs, setLogs] = useState([]);
-  const [activeFilters, setActiveFilters] = useState({
+  const [logs, setLogs] = useState([]);                 //Use state for log list
+  const [activeFilters, setActiveFilters] = useState({  //Use state for log list filters
     DeviceController: true,
     DisplayDevice: true,
     AcquisitionDevice: true
   });
 
   useEffect(() => {
+    //--- Connect to the MQTT broker
     console.log("Connecting to EMQX Broker via WebSockets...");
     const client = mqtt.connect(OPTIONS); // Connect to the MQTT broker
 
-    client.on('connect', () => {  //Log/Update text once connected
-      setStatus({ text: 'Connected', class: 'connected' });
+    client.on('connect', () => {                            //Log/Update text once connected
+      setStatus({ text: 'Connected', class: 'connected' }); //Update the connection use state
       console.log("Successfully connected!");
 
       ENDPOINTS.forEach(topic => {
-        client.subscribe(topic, (err) => {  //Subscribe to topics
-          if (!err) console.log(`Subscribed to: ${topic}`);
+        client.subscribe(topic, (err) => {          //Subscribe to topics
+          if (!err) {                               //Check for error
+            console.log(`Subscribed to: ${topic}`); //Log successful connection
+          }
         });
       });
     });
 
-    client.on('error', (err) => { //Handle connection errors
-      console.error('MQTT Error:', err);
-      setStatus({ text: 'Error', class: 'disconnected' });
+    client.on('error', (err) => {                           //Handle connection errors
+      console.error('MQTT Error:', err);                    //Log error to console
+      setStatus({ text: 'Error', class: 'disconnected' });  //Update connection status use state
     });
 
-    client.on('close', () => {
-      // Check if the client engine is already spinning up an auto-reconnect sequence
-      if (client.reconnecting) {
-        setStatus({ text: 'Reconnecting...', class: 'connecting' });
+    client.on('close', () => {                                        //When connection closes
+      if (client.reconnecting) {                                      //Check if client is attempting to reconnect
+        setStatus({ text: 'Reconnecting...', class: 'connecting' });  //Update connection status use case
         console.warn("[MQTT UI Sync] Lost heartbeat packet. Auto-reconnecting background sockets...");
       } else {
-        setStatus({ text: 'Disconnected', class: 'disconnected' });
+        setStatus({ text: 'Disconnected', class: 'disconnected' }); //Update status to disconnected if client is not attempting to reconnect
       }
     });
 
-    // NEW: This forces the badge BACK to green the exact millisecond the stream recovers
-    client.on('reconnect', () => {
+    client.on('reconnect', () => {  //When connection is re-established
       console.log("[MQTT UI Sync] Socket reconnected successfully!");
-      setStatus({ text: 'Connected', class: 'connected' });
+      setStatus({ text: 'Connected', class: 'connected' }); //Update status to connected
     });
 
-    client.on('message', (topic, message) => {  //Route incoming messages
-      const payloadStr = message.toString();
-      const timeStr = new Date().toLocaleTimeString();
+    client.on('message', (topic, message) => {          //Route incoming messages
+      const payloadStr = message.toString();            //Map the incoming message to a string
+      const timeStr = new Date().toLocaleTimeString();  //Log current timestamp
       console.log(`[${topic}]: ${payloadStr}`);
 
+      //Variables to hold information regarding endpoints
       let targetKey = '';
-      let shortName = ''; // Plain text descriptor for log entries
+      let shortName = '';
 
+      //Set above variables depending on the topic name and endpoints map
       if (topic === ENDPOINTS[0]) { targetKey = 'DeviceController'; shortName = "Device Controller"; }
       else if (topic === ENDPOINTS[1]) { targetKey = 'DisplayDevice'; shortName = "Display Device"; }
       else if (topic === ENDPOINTS[2]) { targetKey = 'AcquisitionDevice'; shortName = "Acquisition Device"; }
 
       if (targetKey) {
-        // Keep the exact card functionality active
         setMessages(prev => ({
-          ...prev,
+          ...prev,  // Copy the state of other cards (the UI element holding most recent command) so that they don't disappear when updating data
           [targetKey]: { payload: payloadStr, time: timeStr }
         }));
 
+        // --- Checks which endpoint message came from. Display device doesn't need to be parsed since it only sends status messages
         const isParsable = ['DeviceController', 'AcquisitionDevice'].includes(targetKey);
-        const parsedValue = isParsable ? parseMessage(payloadStr) : '--';
+        if (isParsable){
+          const parsedValue = parseMessage(payloadStr)
+        }
+        else{
+          const parsedValue = "--"  //Default value for if message is not parsed
+        }
 
+        // Update the logs
         setLogs(prevLogs => [
           {
             endpointKey: targetKey,
             name: shortName,
-            payload: payloadStr,   // Keeps original raw packet (e.g. "[A][T][F]")
-            parsed: parsedValue,   // NEW VALUE: Holds human translation (e.g. "Acquisition | Temperature | Inactive")
+            payload: payloadStr,
+            parsed: parsedValue,
             time: timeStr
           },
-          ...prevLogs
+          ...prevLogs //Copies old rows in the logs so they are not overwritten
         ]);
       }
     });
 
     return () => {
-      if (client) client.end();
+      if (client) client.end(); //shut off the client
     };
   }, []);
 
-  // Filter checkbox interaction handler
   const handleCheckboxChange = (key) => {
-    setActiveFilters(prev => ({ ...prev, [key]: !prev[key] }));
+    setActiveFilters(prev => ({ ...prev, [key]: !prev[key] })); //Flips filter
   };
 
-  // Computes which historical logs should show up inside our table markup
-  const filteredLogs = logs.filter(log => activeFilters[log.endpointKey]);
+  const filteredLogs = logs.filter(log => activeFilters[log.endpointKey]);  //Filters visible logs
 
+  //--- HTML
   return (
     <div className="container">
       <div className="header">
@@ -136,7 +142,6 @@ export default function App() {
         <div className="card">
           <h3>Device Controller</h3>
           <div className="topic-string">{ENDPOINTS[0]}</div>
-          {/* CALL UNIFIED PARSER HERE */}
           <div className="payload">{parseMessage(messages.DeviceController.payload)}</div>
           <div className="timestamp">{messages.DeviceController.time}</div>
         </div>
@@ -151,13 +156,11 @@ export default function App() {
         <div className="card">
           <h3>Acquisition Device</h3>
           <div className="topic-string">{ENDPOINTS[2]}</div>
-          {/* CALL UNIFIED PARSER HERE */}
           <div className="payload">{parseMessage(messages.AcquisitionDevice.payload)}</div>
           <div className="timestamp">{messages.AcquisitionDevice.time}</div>
         </div>
       </div>
 
-      {/* Checklist Filters & Historical Table Container */}
       <div className="log-section">
         <h3>Historical Command Feed</h3>
 
@@ -209,16 +212,16 @@ export default function App() {
   );
 }
 
+// Parse incoming messages from Device Controller & Acquisition Device
 function parseMessage(rawMessage) {
   if (!rawMessage || typeof rawMessage !== 'string') return 'No Data';  //If no data or data in the wrong format is sent
 
-  //Clean and standardice to upper
+  //Clean and standardize to upper
   const cleanStr = rawMessage.trim().toUpperCase();
   if (cleanStr.length < 2) return rawMessage;
 
-  // Contextual lookup tables
   const controllerDict = {
-    'A_pos1': 'Acquisition', // Explicitly mapped by position index
+    'A_pos1': 'Acquisition',  //pos1/2 maps to where in the string the letter appears
     'A_pos2': 'Accelerometer',
     'D': 'Display',
     'T': 'Temperature',
@@ -236,29 +239,44 @@ function parseMessage(rawMessage) {
     'B': 'Battery'
   };
 
-  // Protocol 1: Device Controller (Exactly 3 letters like "AAF")
+  // Parsing for Device Controller
   if (cleanStr.length === 3) {
-    // 1st Letter: If it's 'A', use 'A_pos1' (Acquisition)
-    const key1 = cleanStr[0] === 'A' ? 'A_pos1' : cleanStr[0];
-    const d1 = controllerDict[key1] || cleanStr[0];
+    // Handle character 1
+    if (cleanStr[0] === 'A'){ //If the first character is A map to A_pos1 so that the right A is set
+      const key1 = 'A_pos1';
+    }
+    else{
+      const key1 = cleanStr[0]; //Else - Map to whichever character is there
+    }
+    const d1 = controllerDict[key1] || cleanStr[0]; //Map to the right word
 
-    // 2nd Letter: If it's 'A', use 'A_pos2' (Accelerometer)
-    const key2 = cleanStr[1] === 'A' ? 'A_pos2' : cleanStr[1];
-    const d2 = controllerDict[key2] || cleanStr[1];
+    // Handle character 2
+    if (cleanStr[1] === 'A'){
+      const key2 = 'A_pos2';  //If second character is A, map to the correct A
+    }
+    else{
+      const key2 = cleanStr[1]; //Map to whichever character is there
+    }
+    const d2 = controllerDict[key2] || cleanStr[1]; //Map to the right word
 
-    // 3rd Letter: Handle 'T' position swap (Active on position 3, Temperature everywhere else)
-    const d3 = cleanStr[2] === 'T' ? 'Active' : (controllerDict[cleanStr[2]] || cleanStr[2]);
+    // Handle the third letter - if T, set directly to 'active' to avoid the issue we have with a
+    if (cleanStr[2] === 'T'){
+      const d3 = 'Active';
+    }
+    else{
+      const d3 = controllerDict[cleanStr[2]] || cleanStr[2];
+    }
 
-    return `${d1} device | ${d2} | ${d3}`;
+    return `${d1} device | ${d2} | ${d3}`;  //Return the parsed strings
   }
 
-  // Protocol 2: Acquisition Device (Starts with T, L, or H followed immediately by a number)
-  const firstChar = cleanStr.charAt(0);
-  if (['T', 'L', 'H', 'A', 'B'].includes(firstChar)) {
-    const sensorType = acquisitionDict[firstChar];
-    const numericValue = rawMessage.trim().substring(1); // Keeps decimal precision exactly as sent
-    return `${sensorType} | ${numericValue}`;
+  // Handle message from Acquisition device
+  const firstChar = cleanStr.charAt(0);                   //Grab the first character
+  if (['T', 'L', 'H', 'A', 'B'].includes(firstChar)) {    //Check if first character is a known command
+    const sensorType = acquisitionDict[firstChar];        //Map to the dict
+    const numericValue = rawMessage.trim().substring(1);  //Parse the numerical value
+    return `${sensorType} | ${numericValue}`;             //Return the parsed sensor and value
   }
 
-  return rawMessage; // Fallback for raw text if it doesn't fit either rule
+  return rawMessage; // Return the raw message if it cannot be parsed
 }
