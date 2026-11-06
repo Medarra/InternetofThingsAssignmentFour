@@ -60,13 +60,8 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 
 const String status_request = "STATUS_REQUEST";
 
-const int MENU_SIZE = 10;
+const int MENU_SIZE = 5;
 bool menuEnabled[MENU_SIZE] = {
-  true,  // Acquire Temperature
-  true,  // Acquire Humidity
-  true, // Acquire Acceleration
-  true,  // Acquire Altitude
-  true,  // Acquire Battery Level
   true,  // Display Temperature
   true,  // Display Humidity
   true, // Display Acceleration
@@ -78,17 +73,10 @@ bool menuEnabled[MENU_SIZE] = {
 #define EXT_SDA 32
 #define EXT_SCL 33
 
-// SHT30 Humidity and Temperature I2C sensor
-SHT3X sht3x;
-// QMP6988 Pressure and Temperature I2C sensor
-QMP6988 qmp;
 // Flag that ENV was set up
 bool env_ok = false;
 
-void setup_unit_env(void);
-void read_unit_env(void);
 void read_button_data(void);
-void read_imu(void);
 void speaker(void);
 void setup_basic_display(void);
 void setup_wifi();
@@ -104,9 +92,6 @@ void setup()
 
   Serial.begin(115200);
   Serial.println("** Starting Setup **");
-
-  // Set up the ENV Sensor
-  setup_unit_env();
 
   // Set up the display
   setup_basic_display();
@@ -126,8 +111,6 @@ void setup()
 
 void loop()
 {
-  //Serial.println("** Running Loop **");
-  //read_unit_env();
   //read_button_data();
 
   // Also see the draw functions in the 
@@ -190,7 +173,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
 
     Serial.print("Message:");
     for (unsigned int i = 0; i < length; i++) {
-        //Serial.print((char) payload[i]);
         message += (char) payload[i];
     }
     Serial.println(message);
@@ -200,7 +182,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
     String topicStr = String(topic);
 
     // Check which device is sending a message
-    if (topicStr.indexOf("DeviceController") >= 0) {
+    if (topicStr.indexOf("DeviceController") >= 0) 
+    {
       // Check to make sure the message is for our device D
       if (message[0] == 'D')
       {
@@ -211,7 +194,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
       {
         // Send current display state
         sendDisplayState();
-      }
+      } // Else DeviceController message is for the AcquisitionDevice
+
     } // Else the message is from the AcquisitionDevice
     // Check to make sure 
     // Parse and display sensor info
@@ -220,10 +204,17 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
 
 void sendDisplayState(void)
 {
-  //if (client.connected())
+  String message = "D";
 
-    String message = "Stuff";
-    client.publish(mqtt_base.c_str(), message.c_str());
+  for (int i = 0; i < 5; i++)
+  {
+    message += menuEnabled[i] ? "T" : "F";
+  }
+
+  Serial.print("Publishing Display Status: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
 }
 
 
@@ -237,65 +228,6 @@ void setup_basic_display(void)
   M5.Display.setTextSize(1);
   M5.Display.setCursor(0, 40);
   M5.Display.printf("Example Number: %d\r\n", 10);
-
-}
-
-void setup_unit_env()
-{
-  Serial.println("** Setting Up Unit ENV **");
-
-  if (!qmp.begin(&Wire, QMP6988_SLAVE_ADDRESS_L, EXT_SDA, EXT_SCL, 400000U))
-  {
-    Serial.println("Couldn't find QMP6988");
-    while (1)
-      delay(1);
-  }
-
-  if (!sht3x.begin(&Wire, SHT3X_I2C_ADDR, EXT_SDA, EXT_SCL, 400000U))
-  {
-    Serial.println("Couldn't find SHT3X");
-    while (1)
-      delay(1);
-  }
-
-  env_ok = true;
-}
-
-void read_unit_env(void)
-{
-  if (not env_ok)
-  {
-    Serial.println("**** Unit ENV not set up ****");
-    return;
-  }
-
-  if (sht3x.update())
-  {
-    Serial.println("-----SHT3X-----");
-    Serial.print("Temperature: ");
-    Serial.print(sht3x.cTemp);
-    Serial.println(" degrees C");
-    Serial.print("Humidity: ");
-    Serial.print(sht3x.humidity);
-    Serial.println("% rH");
-    Serial.println("-------------\r\n");
-  }
-
-  if (qmp.update())
-  {
-    Serial.println("-----QMP6988-----");
-    Serial.print(F("Temperature: "));
-    Serial.print(qmp.cTemp);
-    Serial.println(" *C");
-    Serial.print(F("Pressure: "));
-    Serial.print(qmp.pressure);
-    Serial.println(" Pa");
-    Serial.print(F("Approx altitude: "));
-    Serial.print(qmp.altitude);
-    Serial.println(" m");
-    Serial.println("-------------\r\n");
-  }
-
 }
 
 void read_button_data(void)
@@ -303,13 +235,7 @@ void read_button_data(void)
   M5.update();  // Required to get states
   if (M5.BtnA.wasPressed()) {
       Serial.println("A Btn Pressed");
-      // Read and print env sensors
-      read_unit_env();
-
-      // Initialize and print and integer that holds the returned voltage in mV
-      int voltage = M5.Power.getBatteryVoltage();
-      Serial.print("Battery Voltage: ");
-      Serial.println(voltage);
+      //
   }
   if (M5.BtnA.wasReleased()) {
 
@@ -317,8 +243,7 @@ void read_button_data(void)
   }
   if (M5.BtnB.wasPressed()) {
       Serial.println("B Btn Pressed");
-      // Read and print imu sensors
-      read_imu();
+      //
   }
   if (M5.BtnB.wasReleased()) {
       Serial.println("B Btn Released");
@@ -331,45 +256,6 @@ void read_button_data(void)
   if (M5.BtnPWR.wasHold()) {
       Serial.println("PWR Btn Hold");
   }
-}
-
-void read_imu(void) 
-{
-  auto imu_update = M5.Imu.update();
-  if (imu_update)
-  {
-
-    auto data = M5.Imu.getImuData();
-
-    // The data obtained by getImuData can be used as follows.
-    // data.accel.x;      // accel x-axis value.
-    // data.accel.y;      // accel y-axis value.
-    // data.accel.z;      // accel z-axis value.
-    // data.accel.value;  // accel 3values array [0]=x / [1]=y / [2]=z.
-    Serial.println("-----Accelerometer-----");
-    Serial.print("X: ");
-    Serial.println(data.accel.x);
-    Serial.print("Y: ");
-    Serial.println(data.accel.y);
-    Serial.print("Z: ");
-    Serial.println(data.accel.z);
-
-    // data.gyro.x;      // gyro x-axis value.
-    // data.gyro.y;      // gyro y-axis value.
-    // data.gyro.z;      // gyro z-axis value.
-    // data.gyro.value;  // gyro 3values array [0]=x / [1]=y / [2]=z.
-    Serial.println("-----Gyroscope-----");
-    Serial.print("X: ");
-    Serial.println(data.gyro.x);
-    Serial.print("Y: ");
-    Serial.println(data.gyro.y);
-    Serial.print("Z: ");
-    Serial.println(data.gyro.z);
-
-    // data.value;  // all sensor 9values array [0~2]=accel / [3~5]=gyro /
-    //              // [6~8]=mag
-  }
-  delay(100); // CRITICAL – can’t read this too quickly or too slowly
 }
 
 void speaker(void) 
