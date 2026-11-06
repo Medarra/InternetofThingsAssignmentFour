@@ -20,7 +20,7 @@ const OPTIONS = {
 const BASE_TOPIC = "SENG3030/Wednesday/"; //Base topic string
 const ENDPOINTS = [
   BASE_TOPIC + "apalmer2583/DeviceController/", //Aly's endpoint
-  BASE_TOPIC + "",                              //Kyle's endpoint
+  BASE_TOPIC + "kmurawsky0383/DisplayDevice/",                              //Kyle's endpoint
   BASE_TOPIC + "tkosatkina4510/AcquisitionDevice/"                               //Tatiana's endpoint
 ];
 
@@ -29,7 +29,7 @@ export default function App() {
   const [status, setStatus] = useState({ text: 'Connecting...', class: 'connecting' });
   const [messages, setMessages] = useState({
     DeviceController: { payload: 'No data received yet', time: '--:--:--' },
-    endpoint2: { payload: 'No data received yet', time: '--:--:--' },
+    DisplayDevice: { payload: 'No data received yet', time: '--:--:--' },
     AcquisitionDevice: { payload: 'No data received yet', time: '--:--:--' },
   });
 
@@ -37,7 +37,7 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [activeFilters, setActiveFilters] = useState({
     DeviceController: true,
-    endpoint2: true,
+    DisplayDevice: true,
     AcquisitionDevice: true
   });
 
@@ -86,7 +86,7 @@ export default function App() {
       let shortName = ''; // Plain text descriptor for log entries
 
       if (topic === ENDPOINTS[0]) { targetKey = 'DeviceController'; shortName = "Device Controller"; }
-      else if (topic === ENDPOINTS[1]) { targetKey = 'endpoint2'; shortName = "Kyle's Endpoint"; }
+      else if (topic === ENDPOINTS[1]) { targetKey = 'DisplayDevice'; shortName = "Display Device"; }
       else if (topic === ENDPOINTS[2]) { targetKey = 'AcquisitionDevice'; shortName = "Acquisition Device"; }
 
       if (targetKey) {
@@ -142,10 +142,10 @@ export default function App() {
         </div>
 
         <div className="card">
-          <h3>Endpoint 2</h3>
+          <h3>Display Device</h3>
           <div className="topic-string">{ENDPOINTS[1]}</div>
-          <div className="payload">{messages.endpoint2.payload}</div>
-          <div className="timestamp">{messages.endpoint2.time}</div>
+          <div className="payload">{messages.DisplayDevice.payload}</div>
+          <div className="timestamp">{messages.DisplayDevice.time}</div>
         </div>
 
         <div className="card">
@@ -167,8 +167,8 @@ export default function App() {
             Device Controller
           </label>
           <label>
-            <input type="checkbox" checked={activeFilters.endpoint2} onChange={() => handleCheckboxChange('endpoint2')} />
-            Kyle's Endpoint
+            <input type="checkbox" checked={activeFilters.DisplayDevice} onChange={() => handleCheckboxChange('DisplayDevice')} />
+            Display Device
           </label>
           <label>
             <input type="checkbox" checked={activeFilters.AcquisitionDevice} onChange={() => handleCheckboxChange('AcquisitionDevice')} />
