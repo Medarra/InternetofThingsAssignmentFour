@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
-#include <string.h>
 #include "M5Unified.h"
 #include <M5UnitENV.h>
 
@@ -15,6 +14,8 @@ const int mqtt_port = 8883;
 
 
 const std::string mqtt_base = "SENG3030/Wednesday/" + mqtt_username + "/DeviceController/";
+const std::string acqusition_topic = "SENG3030/Wednesday/tkosatkina4510/AcquisitionDevice/#";
+const std::string display_topic = "SENG3030/Wednesday/kmurawsky0383/DisplayDevice/#";
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
@@ -48,6 +49,8 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 // I2C Pins for the external I2C port
 #define EXT_SDA 32
 #define EXT_SCL 33
+
+const String status_request = "STATUS_REQUEST";
 
 const int MENU_SIZE = 10;
 
@@ -99,6 +102,8 @@ void connectToMQTTBroker(void);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void drawMenu(void);
 void publishMenuState(int item);
+void sendAcquireStatus(void);
+void sendDisplayStatus(void);
 
 void setup()
 {
@@ -160,7 +165,10 @@ void connectToMQTTBroker() {
         Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
         if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
             Serial.println("Connected to MQTT broker");
-            client.subscribe((mqtt_base + "#").c_str());
+            client.subscribe(acqusition_topic.c_str());
+            client.subscribe(display_topic.c_str());
+
+            client.publish(mqtt_base.c_str(), status_request.c_str());
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
             Serial.print(client.state());
@@ -173,12 +181,57 @@ void connectToMQTTBroker() {
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
     Serial.print("Message received on topic: ");
     Serial.println(topic);
-    Serial.print("Message:");
+
+    String message = "";
+
     for (unsigned int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
+        message += (char) payload[i];
     }
-    Serial.println();
+
+    Serial.print("Message:");
+    Serial.println(message);
     Serial.println("-----------------------");
+
+    String topicStr = String(topic);
+
+    if (message == status_request) {
+      if (topicStr.indexOf("AcquisitionDevice") >= 0)
+      {
+        sendAcquireStatus();
+      }
+      else if (topicStr.indexOf("DisplayDevice") >= 0)
+      {
+        sendDisplayStatus();
+      }
+
+      return;
+    }
+
+    if (message.length() == 6 &&
+    message[0] == 'A')
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            menuEnabled[i] =
+                (message[i + 1] == 'T');
+        }
+
+        drawMenu();
+        return;
+    }
+
+    if (message.length() == 6 &&
+    message[0] == 'D')
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            menuEnabled[i + 5] =
+                (message[i + 1] == 'T');
+        }
+
+        drawMenu();
+        return;
+    }
 }
 
 
@@ -253,6 +306,36 @@ void publishMenuState(int item)
   }
 
   Serial.print("Publishing: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
+}
+
+void sendAcquireStatus(void)
+{
+  String message = "A";
+
+  for (int i = 0; i < 5; i++)
+  {
+    message += menuEnabled[i] ? "T" : "F";
+  }
+
+  Serial.print("Publishing Acquire Status: ");
+  Serial.println(message);
+
+  client.publish(mqtt_base.c_str(), message.c_str());
+}
+
+void sendDisplayStatus(void)
+{
+  String message = "D";
+
+  for (int i = 5; i < 10; i++)
+  {
+    message += menuEnabled[i] ? "T" : "F";
+  }
+
+  Serial.print("Publishing Display Status: ");
   Serial.println(message);
 
   client.publish(mqtt_base.c_str(), message.c_str());
