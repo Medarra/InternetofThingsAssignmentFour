@@ -11,23 +11,20 @@
 #define EXT_SDA 32
 #define EXT_SCL 33
 
-const char* ssid = "Mars2.4";
-const char* password = "DoctorAiBolit050575!";
+const char* ssid = "iPhone Tatiana";
+const char* password = "0976431!";
 std::string mqtt_username = "tkosatkina4510";
 std::string mqtt_password = "4510";
+std::string mqtt_controller = "apalmer2583/DeviceController/";
 const char *mqtt_broker = "p07da41d.ala.us-east-1.emqxsl.com";
 
 const int mqtt_port = 8883;
 
+// MQTT Topics
+const std::string mqtt_base = "SENG3030/Wednesday/";
+const std::string mqtt_myDevice = "SENG3030/Wednesday/" + mqtt_username + "/";
+const std::string mqtt_data = mqtt_myDevice + "AcquisitionDevice/";
 
-const std::string mqtt_base = "SENG3030/Wednesday/" + mqtt_username + "/";
-const std::string mqtt_battery = mqtt_base + "battery";
-
-const std::string mqtt_bmp_temperature = mqtt_base + "qmp/temperature";
-const std::string mqtt_bmp_pressure = mqtt_base + "qmp/pressure";
-
-const std::string mqtt_sht_temperature = mqtt_base + "sht30/temperature";
-const std::string mqtt_sht_humidity = mqtt_base + "sht30/humidity";
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
@@ -62,22 +59,33 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 SHT3X sht3x;
 // QMP6988 Pressure and Temperature I2C sensor
 QMP6988 qmp;
-// Flag that ENV was set up
+// Sensors initialized flag
 bool env_ok = false;
+
+
+// Sensor reading intervals (in milliseconds)
+const unsigned long READ_INTERVAL = 30000;
+
+// Flag sensor publishing
+bool send_temperature = true;
+bool send_humidity = true;
+bool send_accelerometer = true;
+bool send_altitude = true;
+bool send_battery = true;
 
 void setup_unit_env(void);
 void read_unit_env(void);
 void battery_voltage(void);
-void detect_buttons(void);
-void test_speaker(void);
 void track_motion(void);
-void test_display(void);
 void setup_wifi(void);
 void connectToMQTTBroker(void);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
+void publishSensorDataToMQTT(char sensor, float value);
 
-void testBrokerPort();
-
+/**
+ * Function to setup the M5Stack device, initialize sensors, connect to Wi-Fi, 
+ * and set up MQTT communication.
+ */
 void setup()
 {
   auto cfg = M5.config();
@@ -86,177 +94,174 @@ void setup()
   Serial.begin(115200);
   Serial.println("** Starting Setup **");
 
+  // Set up the ENV Sensor
+  setup_unit_env();
   // Setup Wi-Fi
   setup_wifi();
-  testBrokerPort();
 
   espClient.setCACert(ca_cert);
   client.setServer(mqtt_broker, mqtt_port);
   client.setCallback(mqttCallback);
-
-  // Set up the ENV Sensor
-  setup_unit_env();
 }
 
+/**
+ * Main loop function that continuously reads sensor data, checks for MQTT connection, 
+ * and processes incoming MQTT messages.
+ */
 void loop()
 {
-  Serial.println("** Running Loop **");
-  read_unit_env();
-  // battery_voltage();
-  // detect_buttons();
-  // test_speaker();
-  // track_motion();
-  //test_display();
-  delay(1000);
+  M5.update();
 
+  // Store the time of the last sensor readings
+  static unsigned long lastSensorRead = 0;
+
+  // Reconnect to MQTT broker if disconnected
   if (!client.connected()) {
-        connectToMQTTBroker();
-    }
-  // Required for subscriptions to fire callback
+    connectToMQTTBroker();
+  }
+
+  // Process incoming MQTT messages
   client.loop();
-  
+
+  // Get current time since device started
+  unsigned long currentTime = millis();
+
+  // Read and publish sensor data
+  if (currentTime - lastSensorRead >= READ_INTERVAL) {
+    lastSensorRead = currentTime;
+    read_unit_env();
+    battery_voltage();
+    track_motion();
+  }
 }
 
 void setup_unit_env()
 {
   Serial.println("** Setting Up Unit ENV **");
 
+  // Initialize QMP6988 pressure/altitude sensor
   if (!qmp.begin(&Wire, QMP6988_SLAVE_ADDRESS_L, EXT_SDA, EXT_SCL, 400000U))
   {
     Serial.println("Couldn't find QMP6988");
     while (1)
-      delay(1);
+    delay(1);
   }
 
+  // Initialize SHT3X temperature/humidity sensor
   if (!sht3x.begin(&Wire, SHT3X_I2C_ADDR, EXT_SDA, EXT_SCL, 400000U))
   {
     Serial.println("Couldn't find SHT3X");
     while (1)
-      delay(1);
+    delay(1);
   }
 
   env_ok = true;
 }
 
+/**
+ * Function to read data from the ENV sensors (SHT3X and QMP6988) and publish the readings to the MQTT broker.
+ * It checks if the sensors are set up correctly, reads temperature, humidity, pressure, 
+ * and altitude, and publishes the data to the corresponding MQTT topics if the respective flags are enabled.
+ */
 void read_unit_env(void)
 {
-  if (not env_ok)
+  // Check if the ENV sensor was set up successfully
+  if (!env_ok)
   {
     Serial.println("**** Unit ENV not set up ****");
     return;
   }
 
-  if (sht3x.update())
-  {
-    Serial.println("-----SHT3X-----");
-    Serial.print("Temperature: ");
-    Serial.print(sht3x.cTemp);
-    Serial.println(" degrees C");
-    Serial.print("Humidity: ");
-    Serial.print(sht3x.humidity);
-    Serial.println("% rH");
-    Serial.println("-------------\r\n");
-    sprintf(mqtt_buffer, "%0.2f", sht3x.cTemp);
-    client.publish(mqtt_sht_temperature.c_str(), mqtt_buffer);
-
+  // Read temperature and humidity from the SHT3X sensor
+  if (send_temperature || send_humidity) {
+    if (sht3x.update()) {
+    // Publish temperature data if enabled
+    if (send_temperature) {
+      publishSensorDataToMQTT('T', sht3x.cTemp);
+    }
+    // Publish humidity data if enabled
+    if (send_humidity) {
+      publishSensorDataToMQTT('H', sht3x.humidity);
+    }
+  } else {
+    Serial.println("Failed to read SHT3X sensor data");
   }
+}
+  
 
-  if (qmp.update())
-  {
-    Serial.println("-----QMP6988-----");
-    Serial.print(F("Temperature: "));
-    Serial.print(qmp.cTemp);
-    Serial.println(" *C");
-    Serial.print(F("Pressure: "));
-    Serial.print(qmp.pressure);
-    Serial.println(" Pa");
-    Serial.print(F("Approx altitude: "));
-    Serial.print(qmp.altitude);
-    Serial.println(" m");
-    Serial.println("-------------\r\n");
+  // Read altitude from the QMP6988 sensor
+  if (send_altitude) {
+    if (qmp.update())
+    {
+      // Publish altitude data if enabled
+      if (send_altitude) {
+        publishSensorDataToMQTT('L', qmp.altitude);
+      }
+    } else {
+      Serial.println("Failed to read QMP6988 sensor data");
+    }
   }
-
 }
 
+/**
+ * Function to read the battery voltage from the M5Stack device and print it to the Serial monitor.
+ * It retrieves the battery voltage using the M5.Power.getBatteryVoltage() method and prints the value in volts.
+ */
 void battery_voltage(void)
 {
-  float voltage = M5.Power.getBatteryVoltage();
-  Serial.print("Battery Voltage: ");
-  Serial.print(voltage);
-  Serial.println(" V");
-}
+  // Check if battery publishing is enabled
+  if (!send_battery) {
+    return;
+  }
 
-void detect_buttons(void)
-{
-  M5.update();  // Required to get states
-  if (M5.BtnA.wasPressed()) {
-    Serial.println("A Btn Pressed");
-  }
-  if (M5.BtnA.wasReleased()) {
+  if (send_battery) {
+    float voltage = M5.Power.getBatteryVoltage();
+  
+    Serial.printf("Battery Voltage: %.3f V\n", voltage);
 
-    Serial.println("A Btn Released");
-  }
-  if (M5.BtnB.wasPressed()) {
-    Serial.println("B Btn Pressed");
-  }
-  if (M5.BtnB.wasReleased()) {
-    Serial.println("B Btn Released");
-  }
-  if (M5.BtnPWR.wasClicked()) {
-    Serial.println("PWR Btn Clicked");
-  }
-  if (M5.BtnPWR.wasHold()) {
-    Serial.println("PWR Btn Hold");
+    // Publish battery voltage to MQTT
+    publishSensorDataToMQTT('B', voltage);
   }
 }
 
-void test_speaker(void)
-{
-  M5.Speaker.tone(4000, 20);
-}
-
+/**
+ * Function to track motion using the IMU sensor on the M5Stack device.
+ * It updates the IMU sensor readings and prints the accelerometer data (x, y, z) to the Serial monitor.
+ */
 void track_motion(void)
 {
-  M5.update();
-  auto imu_update = M5.Imu.update();
-    if (imu_update) {
+  // Check if accelerometer publishing is enabled
+  if (!send_accelerometer) {
+    return;
+  }
 
-        auto data = M5.Imu.getImuData();
-        Serial.print("Accel: ");
-        Serial.print(data.accel.x);
-        Serial.print(", ");
-        Serial.print(data.accel.y);
-        Serial.print(", ");
-        Serial.println(data.accel.z);
-        // The data obtained by getImuData can be used as follows.
-        // data.accel.x;      // accel x-axis value.
-        // data.accel.y;      // accel y-axis value.
-        // data.accel.z;      // accel z-axis value.
-        // data.accel.value;  // accel 3values array [0]=x / [1]=y / [2]=z.
+  // Read IMU data
+  if (M5.Imu.update()) {
 
-        // data.gyro.x;      // gyro x-axis value.
-        // data.gyro.y;      // gyro y-axis value.
-        // data.gyro.z;      // gyro z-axis value.
-        // data.gyro.value;  // gyro 3values array [0]=x / [1]=y / [2]=z.
+    auto data = M5.Imu.getImuData();
 
-        // data.value;  // all sensor 9values array [0~2]=accel / [3~5]=gyro /
-        //              // [6~8]=mag
+    // Read acceleration on three axes
+    float accel_x = data.accel.x;
+    float accel_y = data.accel.y;
+    float accel_z = data.accel.z;
 
+    // Create JSON payload
+    char buffer[256];
+
+    snprintf(buffer, sizeof(buffer), "A%.3f,%.3f,%.3f", accel_x, accel_y, accel_z);
+
+    // Publish accelerometer data
+    if (client.connected()) {
+
+      if (client.publish(mqtt_data.c_str(), buffer)) {
+        Serial.println("Accelerometer data published successfully");
+      } else {
+        Serial.println("Failed to publish accelerometer data");
+      }
     }
-    delay(100);    // CRITICAL – can’t read this too quickly or too slowly
-}
-
-void test_display(void)
-{
-  M5.Display.setRotation(1);
-  M5.Display.setTextColor(GREEN);
-  M5.Display.setTextDatum(middle_center);
-  M5.Display.setFont(&fonts::FreeSansBold9pt7b);
-  M5.Display.setTextSize(1);
-  M5.Display.setCursor(0, 40);
-  M5.Display.clear();
-
-  M5.Display.printf("Example Number: %d\r\n", 10);
+  } else {
+    Serial.println("Failed to read accelerometer data");
+  }
 }
 
 void setup_wifi() {
@@ -283,54 +288,132 @@ void connectToMQTTBroker() {
     while (!client.connected()) {
         String client_id = "esp32-client-" + String(WiFi.macAddress());
         Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
+        
         if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
             Serial.println("Connected to MQTT broker");
-            client.subscribe((mqtt_base + "#").c_str());
-            // Publish message upon successful connection
-            client.publish((mqtt_base + "hello").c_str(), "Hello SENG3030!");
+            client.subscribe((mqtt_base + mqtt_controller).c_str());
+            Serial.printf("Subscribed to topic: %s\n", (mqtt_base + mqtt_controller).c_str());
+    
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
             Serial.print(client.state());
             Serial.println(" try again in 5 seconds");
-            delay(25000);
+            delay(5000);
         }
     }
 }
 
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
-    Serial.print("Message received on topic: ");
-    Serial.println(topic);
-    Serial.print("Message:");
-    for (unsigned int i = 0; i < length; i++) {
-        Serial.print((char) payload[i]);
-    }
-    Serial.println();
-    Serial.println("-----------------------");
-}
-
-
-void testBrokerPort()
-{
-  IPAddress brokerIP;
-
-  Serial.println("\n--- Testing MQTT network connection ---");
-
-  if (!WiFi.hostByName(mqtt_broker, brokerIP)) {
-    Serial.println("FAILED: Cannot resolve broker hostname");
+  // Check if the topic matches the expected topic for this device  
+  if (String(topic) != (mqtt_base + mqtt_controller).c_str()) {
+    Serial.printf("Received message on unexpected topic: %s\n", topic);
     return;
   }
 
-  Serial.print("Broker IP: ");
-  Serial.println(brokerIP);
+  // Convert received payload to a string and remove any leading/trailing whitespace
+  String command = "";
+  for (unsigned int i = 0; i < length; i++) {
+      command += (char)payload[i];
+  }
 
-  WiFiClient tcpTest;
+  command.trim(); 
+  command.toUpperCase();
 
-  Serial.println("Testing TCP connection to port 8883...");
+  Serial.printf("Received command: %s\n", command.c_str());
 
-  if (tcpTest.connect(mqtt_broker, 8883)) {
-    Serial.println("SUCCESS: TCP port 8883 is reachable");
-    tcpTest.stop();
+  // Check command length and corresponding device
+  if (command.length() != 3) {
+    Serial.println("Invalid command length. Expected 3 characters.");
+    return;
+  }
+
+  char device = command[0];
+  char sensor = command[1];
+  char state = command[2];
+
+  if (device != 'A') {
+    Serial.println("Invalid device identifier. Expected 'A'.");
+    return;
+  }
+
+  // Check whether the command is to turn on or off a sensor and execute the corresponding action
+  if (state == 'T') {
+    
+    switch (sensor) {
+      case 'T':
+        send_temperature = true;
+        Serial.println("Temperature sensor turned ON");
+        break;
+      case 'H':
+        send_humidity = true;
+        Serial.println("Humidity sensor turned ON");
+        break;
+      case 'A':
+        send_accelerometer = true;
+        Serial.println("Accelerometer sensor turned ON");
+        break;
+      case 'L':
+        send_altitude = true;
+        Serial.println("Altitude sensor turned ON");
+        break;
+      case 'B':
+        send_battery = true;
+        Serial.println("Battery sensor turned ON");
+        break;
+      default:
+        Serial.println("Invalid sensor identifier.");
+    }
+
+  } else if (state == 'F') {
+    
+    switch (sensor) {
+      case 'T':
+        send_temperature = false;
+        Serial.println("Temperature sensor turned OFF");
+        break;
+      case 'H':
+        send_humidity = false;
+        Serial.println("Humidity sensor turned OFF");
+        break;
+      case 'A':
+        send_accelerometer = false;
+        Serial.println("Accelerometer sensor turned OFF");
+        break;
+      case 'L':
+        send_altitude = false;
+        Serial.println("Altitude sensor turned OFF");
+        break;
+      case 'B':
+        send_battery = false;
+        Serial.println("Battery sensor turned OFF");
+        break;
+      default:
+        Serial.println("Invalid sensor identifier.");
+    } 
   } else {
-    Serial.println("FAILED: Cannot establish TCP connection");
+  Serial.println("Invalid command state. Expected T or F.");
+  return;
+  }
+}
+
+/**
+ * Helping function to publish sensor data to the MQTT broker. 
+ * It checks if the client is connected, converts the float value to a string, 
+ * and publishes it to the specified topic. 
+ */
+void publishSensorDataToMQTT(char sensor, float value) {
+  if (!client.connected()) {
+    return;
+  }
+
+  // Convert the float value to a string and publish it to the MQTT topic
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%c%.2f", sensor, value);
+  
+  // Check if the publish was successful and print the result
+  if (client.publish(mqtt_data.c_str(), buffer)) {
+    Serial.printf("Published: %s\n", buffer);
+  } else {
+    Serial.println("Failed to publish sensor data");
   }
 }
