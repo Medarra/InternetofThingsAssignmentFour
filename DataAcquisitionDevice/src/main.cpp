@@ -217,14 +217,12 @@ void battery_voltage(void)
     return;
   }
 
-  if (send_battery) {
-    float voltage = M5.Power.getBatteryVoltage();
-  
-    Serial.printf("Battery Voltage: %.3f V\n", voltage);
+  float voltage = M5.Power.getBatteryVoltage();
 
-    // Publish battery voltage to MQTT
-    publishSensorDataToMQTT('B', voltage);
-  }
+  Serial.printf("Published: %.3f V\n", voltage);
+
+  // Publish battery voltage to MQTT
+  publishSensorDataToMQTT('B', voltage);
 }
 
 /**
@@ -257,7 +255,7 @@ void track_motion(void)
     if (client.connected()) {
 
       if (client.publish(mqtt_data.c_str(), buffer)) {
-        Serial.println("Accelerometer data published successfully");
+        Serial.printf("Published: %s\n", buffer);
       } else {
         Serial.println("Failed to publish accelerometer data");
       }
@@ -293,11 +291,18 @@ void connectToMQTTBroker() {
         Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
         
         if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
-            Serial.println("Connected to MQTT broker");
-            client.subscribe((mqtt_base + mqtt_controller).c_str());
-            Serial.printf("Subscribed to topic: %s\n", (mqtt_base + mqtt_controller).c_str());
+          Serial.println("Connected to MQTT broker");
+          
+          // Subscribe to the topic for receiving commands from the Controller Device
+          client.subscribe((mqtt_base + mqtt_controller).c_str());
+          Serial.printf("Subscribed to topic: %s\n", (mqtt_base + mqtt_controller).c_str());
 
-            client.publish(mqtt_data.c_str(), status_request.c_str());
+          // Request the current status of the sensors from the Controller Device
+          if (client.publish(mqtt_data.c_str(), status_request.c_str())) {
+            Serial.println("Status request published");
+          } else {
+            Serial.println("Failed to publish status request");
+          }
 
         } else {
             Serial.print("Failed to connect to MQTT broker, rc=");
@@ -329,9 +334,15 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   // Check command length and corresponding device
   if (command == status_request) {
     sendStatusRequest();
-  } else if (command.length() == 6) {
+    return;
+  } 
+  
+  if (command.length() == 6) {
     receiveStatusRequest(command);
-  } else if (command.length() != 3) {
+    return;
+  }
+  
+  if (command.length() != 3) {
     Serial.println("Invalid command length. Expected 3 characters.");
     return;
   }
@@ -433,23 +444,31 @@ void sendStatusRequest(void) {
  */
 void receiveStatusRequest(String command) {
   // Check status response
-  if (command.length() != 6)
-    {
-        Serial.println("Invalid status response length.");
+  if (command.length() != 6) {
+    Serial.println("Invalid status response length.");
+    return;
+  }
+
+  // Check if the first character is 'A' for Acquisition Device
+  if (command[0] != 'A')
+  {
+      Serial.println("Not an acquisition status packet.");
+      return;
+  }
+
+  // Check if the remaining characters are either 'T' or 'F' for each sensor state
+  for (int i = 1; i < 6; i++) {
+    if (command[i] != 'T' && command[i] != 'F') {
+        Serial.println("Invalid sensor state in status response.");
         return;
     }
+  }
 
-    if (command[0] != 'A')
-    {
-        Serial.println("Not an acquisition status packet.");
-        return;
-    }
-
-    send_temperature   = (command[1] == 'T');
-    send_humidity      = (command[2] == 'T');
-    send_accelerometer = (command[3] == 'T');
-    send_altitude      = (command[4] == 'T');
-    send_battery       = (command[5] == 'T');
+  send_temperature = (command[1] == 'T');
+  send_humidity = (command[2] == 'T');
+  send_accelerometer = (command[3] == 'T');
+  send_altitude = (command[4] == 'T');
+  send_battery = (command[5] == 'T');
 
   Serial.println("Sensor states restored: " + command);
 }
