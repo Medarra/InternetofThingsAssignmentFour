@@ -275,7 +275,7 @@ function parseMessage(rawMessage) {
   const firstChar = cleanStr.charAt(0);                   //Grab the first character
   
   //Ensure second character is numerical - prevent mapping status requests as Acquisition device messages
-  if (isNaN(cleanStr.charAt(1))){
+  if (isNaN(cleanStr.charAt(1)) && cleanStr.charAt(1) !== '-'){
     return rawMessage;  //If second character is not a number, return the raw message, likely a status response
   }
   if (['T', 'L', 'H', 'A', 'B'].includes(firstChar)) {    //Check if first character is a known command
