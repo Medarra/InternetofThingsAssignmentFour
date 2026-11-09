@@ -9,8 +9,8 @@
 #include <PubSubClient.h>
 #include <string.h>
 
-const char* ssid = "Kyle’s IPhone";
-const char* password = "yesyes123";
+const char *ssid = "Kyle’s IPhone";
+const char *password = "yesyes123";
 std::string mqtt_username = "kmurawsky0383";
 std::string mqtt_password = "0383";
 const char *mqtt_broker = "p07da41d.ala.us-east-1.emqxsl.com";
@@ -33,7 +33,7 @@ PubSubClient client(espClient);
 
 char mqtt_buffer[40];
 
-const char* ca_cert = R"EOF(
+const char *ca_cert = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
 MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
@@ -62,16 +62,16 @@ const String status_request = "STATUS_REQUEST";
 
 const int MENU_SIZE = 5;
 bool menuEnabled[MENU_SIZE] = {
-  true,  // Display Temperature
-  true,  // Display Humidity
-  true, // Display Acceleration
-  true,  // Display Altitude
-  true   // Display Battery Level
+    true, // Display Temperature
+    true, // Display Humidity
+    true, // Display Acceleration
+    true, // Display Altitude
+    true  // Display Battery Level
 };
 
 int selectedPage = 0;
 
-double pages[MENU_SIZE] = { 0, 1, 2, 3, 4};
+double pages[MENU_SIZE] = {0, 1, 2, 3, 4};
 
 void read_button_data(void);
 void speaker(void);
@@ -80,7 +80,9 @@ void setup_wifi();
 void connectToMQTTBroker();
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void sendDisplayState(void);
+void checkPage(void);
 void drawMenu(void);
+void updateDisplayState(String message);
 
 void setup()
 {
@@ -110,27 +112,27 @@ void setup()
   client.setKeepAlive(60);
   client.setCallback(mqttCallback);
   connectToMQTTBroker();
-
 }
 
 void loop()
 {
   read_button_data();
 
-  // Also see the draw functions in the 
-  // Display example at M5Stack 
+  // Also see the draw functions in the
+  // Display example at M5Stack
 
   delay(100);
 
-  if (!client.connected()) {
-        connectToMQTTBroker();
+  if (!client.connected())
+  {
+    connectToMQTTBroker();
   }
   // Required for subscriptions to fire callback
   client.loop();
-
 }
 
-void setup_wifi() {
+void setup_wifi()
+{
   delay(10);
   // We start by connecting to a WiFi network
   Serial.println();
@@ -139,7 +141,8 @@ void setup_wifi() {
 
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
   }
@@ -150,60 +153,78 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-void connectToMQTTBroker() {
-    while (!client.connected()) {
-        String client_id = "esp32-client-" + String(WiFi.macAddress());
-        Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
-        if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str())) {
-            Serial.println("Connected to MQTT broker");
+void connectToMQTTBroker()
+{
+  while (!client.connected())
+  {
+    String client_id = "esp32-client-" + String(WiFi.macAddress());
+    Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
+    if (client.connect(client_id.c_str(), mqtt_username.c_str(), mqtt_password.c_str()))
+    {
+      Serial.println("Connected to MQTT broker");
 
-            client.subscribe(acqusition_topic.c_str());
-            client.subscribe(control_topic.c_str());
-            client.publish(mqtt_base.c_str(), status_request.c_str());
-        } else {
-            Serial.print("Failed to connect to MQTT broker, rc=");
-            Serial.print(client.state());
-            Serial.println(" try again in 5 seconds");
-            delay(25000);
-        }
+      client.subscribe(acqusition_topic.c_str());
+      client.subscribe(control_topic.c_str());
+      client.publish(mqtt_base.c_str(), status_request.c_str());
     }
+    else
+    {
+      Serial.print("Failed to connect to MQTT broker, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(25000);
+    }
+  }
 }
 
-void mqttCallback(char *topic, byte *payload, unsigned int length) {
-    Serial.print("Message received on topic: ");
-    Serial.println(topic);
+void mqttCallback(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("Message received on topic: ");
+  Serial.println(topic);
 
-    String message = "";
+  String message = "";
 
-    Serial.print("Message:");
-    for (unsigned int i = 0; i < length; i++) {
-        message += (char) payload[i];
-    }
-    Serial.println(message);
-    Serial.println("-----------------------");
+  Serial.print("Message:");
+  for (unsigned int i = 0; i < length; i++)
+  {
+    message += (char)payload[i];
+  }
+  Serial.println(message);
+  Serial.println("-----------------------");
 
-    // A4
-    String topicStr = String(topic);
+  // A4
+  String topicStr = String(topic);
 
-    // Check which device is sending a message
-    if (topicStr.indexOf("DeviceController") >= 0) 
+  // Check which device is sending a message
+  if (topicStr.indexOf("DeviceController") >= 0)
+  {
+    // Check to make sure the message is for our device D
+    if (message[0] == 'D')
     {
-      // Check to make sure the message is for our device D
-      if (message[0] == 'D')
-      {
-        // Parse and change display appropraitely 
+      // Parse and change display appropraitely
+      Serial.printf("Before: %c", (menuEnabled[0] ? 'T' : 'F'));
+      Serial.println("-----------------------");
+      updateDisplayState(message);
+      Serial.printf("After: %c", (menuEnabled[0] ? 'T' : 'F'));
+      Serial.println("-----------------------");
+    }
+    else if (message == status_request)
+    {
+      // Send current display state
+      sendDisplayState();
+    }
+    // Else DeviceController message is for the AcquisitionDevice and we don't need to do anything
+  } // Else the message is from the AcquisitionDevice to use and is larger than a 1 char string - Make sure its the readings and not the status message or request
+  else if (topicStr.indexOf("AcquisitionDevice") >= 0 && 
+          message != status_request && 
+          message.length() > 1 &&
+          (message[1] != 'T' && message[1] != 'F'))
+  {
+    Serial.println("Acquisition Device sent sensor data");
+    Serial.println("-----------------------");
+    // Parse and save sensor info
 
-      }
-      else if (message == status_request)
-      {
-        // Send current display state
-        sendDisplayState();
-      } // Else DeviceController message is for the AcquisitionDevice
-
-    } // Else the message is from the AcquisitionDevice
-    // Check to make sure 
-    // Parse and display sensor info
-
+  }
 }
 
 void sendDisplayState(void)
@@ -221,98 +242,134 @@ void sendDisplayState(void)
   client.publish(mqtt_base.c_str(), message.c_str());
 }
 
-void setup_basic_display(void)
-{
-  M5.Display.clear();
-  M5.Display.setRotation(1);
-  M5.Display.setTextColor(GREEN);
-  M5.Display.setTextDatum(middle_center);
-  M5.Display.setFont(&fonts::FreeSansBold9pt7b);
-  M5.Display.setTextSize(1);
-  M5.Display.setCursor(0, 40);
-}
+// void setup_basic_display(void)
+// {
+//   M5.Display.clear();
+//   M5.Display.setRotation(1);
+//   M5.Display.setTextColor(GREEN);
+//   M5.Display.setTextDatum(middle_center);
+//   M5.Display.setFont(&fonts::FreeSansBold9pt7b);
+//   M5.Display.setTextSize(1);
+//   M5.Display.setCursor(0, 40);
+// }
 
 void read_button_data(void)
 {
-  M5.update();  // Required to get states
-  if (M5.BtnA.wasPressed()) {
-      Serial.println("A Btn Pressed");
-      // Page through displays
-      selectedPage++;
-      if (selectedPage > MENU_SIZE)
-      {
-        selectedPage = 0;
-      }
-      drawMenu();
-      // Make beep sound
-      speaker();
+  M5.update(); // Required to get states
+  if (M5.BtnA.wasPressed())
+  {
+    Serial.println("A Btn Pressed");
+    // Check what page we should be displaying and then draw it
+    checkPage();
+    drawMenu();
+    // Make beep sound for effect
+    speaker();
   }
-  if (M5.BtnA.wasReleased()) {
+  if (M5.BtnA.wasReleased())
+  {
+    Serial.println("A Btn Released");
+  }
+  if (M5.BtnB.wasPressed())
+  {
+    Serial.println("B Btn Pressed");
+  }
+  if (M5.BtnB.wasReleased())
+  {
+    Serial.println("B Btn Released");
+  }
+  if (M5.BtnPWR.wasClicked())
+  {
+    Serial.println("PWR Btn Clicked");
+  }
+  if (M5.BtnPWR.wasHold())
+  {
+    Serial.println("PWR Btn Hold");
+  }
+}
 
-      Serial.println("A Btn Released");
+void updateDisplayState(String message)
+{
+  if (message.length() == 6 &&
+      message[0] == 'D')
+  {
+    for (int i = 0; i < MENU_SIZE; i++)
+    {
+      menuEnabled[i] =
+          (message[i + 1] == 'T');
+    }
   }
-  if (M5.BtnB.wasPressed()) {
-      Serial.println("B Btn Pressed");
+}
+
+void checkPage(void)
+{
+  // Page through displays
+  selectedPage++;
+
+  // Wrap around displays
+  if (selectedPage > MENU_SIZE)
+  {
+    selectedPage = 0;
   }
-  if (M5.BtnB.wasReleased()) {
-      Serial.println("B Btn Released");
-  }
-  if (M5.BtnPWR.wasClicked()) {
-      Serial.println("PWR Btn Clicked");
-  }
-  if (M5.BtnPWR.wasHold()) {
-      Serial.println("PWR Btn Hold");
+
+  // While we are not on the opening page and sensor is disabled advance again and wrap if needed
+  while (selectedPage != 0 && !menuEnabled[selectedPage - 1])
+  {
+    selectedPage++;
+    if (selectedPage > MENU_SIZE)
+    {
+      selectedPage = 0;
+    }
   }
 }
 
 void drawMenu()
 {
   M5.Display.clear();
-  M5.Display.setRotation(1);
-  M5.Display.setTextColor(GREEN);
-  M5.Display.setTextDatum(middle_center);
-  M5.Display.setFont(&fonts::FreeSansBold9pt7b);
-  M5.Display.setTextSize(1);
+  // M5.Display.setRotation(1);
+  // M5.Display.setTextColor(GREEN);
+  // M5.Display.setTextDatum(middle_center);
+  // M5.Display.setFont(&fonts::FreeSansBold9pt7b);
+  // M5.Display.setTextSize(1);
   M5.Display.setCursor(0, 40);
 
   switch (selectedPage)
   {
-    case 0:
-      // display page 0 Hello user!
-      M5.Display.printf("Reading Sensors From: %s\r\n", acqusition_topic.c_str());
-      break;
-    
-    case 1:
-      // display page 1 Tempature
-      M5.Display.printf("Tempature: %.2f\r\n", pages[0]);
-      break;
+  case 0:
+    // display page 0
+    M5.Display.printf("Reading Sensors From: %s\r\n", acqusition_topic.c_str());
+    break;
 
-    case 2:
-      // display page 2 Humidity
-      M5.Display.printf("Humidity: %.2f\r\n", pages[1]);
-      break;
+  case 1:
+    // display page 1 Tempature
+    M5.Display.printf("Tempature: %.2f\r\n", pages[0]);
+    break;
 
-    case 3:
-      // display page 3 Accelerometer
-      M5.Display.printf("Accelerometer: %.2f\r\n", pages[2]);
-      break;
+  case 2:
+    // display page 2 Humidity
+    M5.Display.printf("Humidity: %.2f\r\n", pages[1]);
+    break;
 
-    case 4:
-      // display page 4 Altitude
-      M5.Display.printf("Altitude: %.2f\r\n", pages[3]);
-      break;
+  case 3:
+    // display page 3 Accelerometer
+    M5.Display.printf("Accelerometer: %.2f\r\n", pages[2]);
+    break;
 
-    case 5:
-      // display page 5 Battery
-      M5.Display.printf("Battery: %.2f\r\n", pages[4]);
-      break;
-    
-    default:
-      break;
+  case 4:
+    // display page 4 Altitude
+    M5.Display.printf("Altitude: %.2f\r\n", pages[3]);
+    break;
+
+  case 5:
+    // display page 5 Battery
+    M5.Display.printf("Battery: %.2f\r\n", pages[4]);
+    break;
+
+  default:
+    break;
   }
 }
 
-void speaker(void) 
+void speaker(void)
 {
   Serial.println("Beep!");
   M5.Speaker.tone(4000, 20);
