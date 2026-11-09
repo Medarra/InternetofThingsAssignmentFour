@@ -60,7 +60,9 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 
 const String status_request = "STATUS_REQUEST";
 
-const int MENU_SIZE = 5;
+const int MENU_SIZE = 5; // THALB
+const int AXIS = 3; // x, y, z
+
 bool menuEnabled[MENU_SIZE] = {
     true, // Display Temperature
     true, // Display Humidity
@@ -71,8 +73,10 @@ bool menuEnabled[MENU_SIZE] = {
 
 int selectedPage = 0;
 
-double pages[MENU_SIZE] = {0, 1, 2, 3, 4};
+double sensors[MENU_SIZE] = { 0 };
+double accelerometer[AXIS] = { 0 };
 
+// Function Prototypes
 void read_button_data(void);
 void speaker(void);
 void setup_basic_display(void);
@@ -83,6 +87,7 @@ void sendDisplayState(void);
 void checkPage(void);
 void drawMenu(void);
 void updateDisplayState(String message);
+void parseSensorData(String message);
 
 void setup()
 {
@@ -101,6 +106,13 @@ void setup()
   M5.Display.setTextSize(1);
   M5.Display.setCursor(0, 40);
   drawMenu();
+  // Test data - remove after when doing real testing
+  parseSensorData("T24.2");
+  parseSensorData("H-17");
+  parseSensorData("A-0.999,0.008,0.020");
+  parseSensorData("L-67");
+  parseSensorData("B4067");
+
 
   // MQTT setup
   setup_wifi();
@@ -222,8 +234,61 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   {
     Serial.println("Acquisition Device sent sensor data");
     Serial.println("-----------------------");
-    // Parse and save sensor info
 
+    // Parse and save sensor data
+    parseSensorData(message);
+    drawMenu();
+
+  }
+}
+
+void parseSensorData(String message)
+{
+  // Declare and initialize variables to hold the type of sensor and its reading
+  char sensor = message[0];
+  double reading = message.substring(1).toDouble();
+
+  switch (sensor)
+  {
+    case 'T':
+      sensors[0] = reading;
+      break;
+    
+    case 'H':
+      sensors[1] = reading;
+      break;
+
+    case 'A':
+    {
+      // Parse the 3 axis values by finding the commas
+      int firstComma = message.indexOf(',');
+      int secondComma = message.indexOf(',', firstComma + 1);
+
+      // Check if indexOf failed to find the commas
+      if (firstComma == -1 || secondComma == -1)
+      {
+        Serial.println("Invalid accelerometer data");
+        break;
+      }
+
+      // Assign xyz values
+      accelerometer[0] = message.substring(1, firstComma).toDouble();
+      accelerometer[1] = message.substring(firstComma + 1, secondComma).toDouble();
+      accelerometer[2] = message.substring(secondComma + 1).toDouble();
+
+      break;
+    }
+
+    case 'L':
+      sensors[3] = reading;
+      break;
+
+    case 'B':
+      sensors[4] = reading;
+      break;
+
+    default:
+      break;
   }
 }
 
@@ -340,28 +405,31 @@ void drawMenu()
     break;
 
   case 1:
-    // display page 1 Tempature
-    M5.Display.printf("Tempature: %.2f\r\n", pages[0]);
+    // display page 1 Temperature
+    M5.Display.printf("Temperature: %.2f C\r\n", sensors[0]);
     break;
 
   case 2:
     // display page 2 Humidity
-    M5.Display.printf("Humidity: %.2f\r\n", pages[1]);
+    M5.Display.printf("Humidity: %.2f %%\r\n", sensors[1]);
     break;
 
   case 3:
     // display page 3 Accelerometer
-    M5.Display.printf("Accelerometer: %.2f\r\n", pages[2]);
+    M5.Display.printf("Accelerometer: \r\n");
+    M5.Display.printf("X: %.3f\r\n", accelerometer[0]);
+    M5.Display.printf("Y: %.3f\r\n", accelerometer[1]);
+    M5.Display.printf("Z: %.3f\r\n", accelerometer[2]);
     break;
 
   case 4:
     // display page 4 Altitude
-    M5.Display.printf("Altitude: %.2f\r\n", pages[3]);
+    M5.Display.printf("Altitude: %.2f m\r\n", sensors[3]);
     break;
 
   case 5:
     // display page 5 Battery
-    M5.Display.printf("Battery: %.2f\r\n", pages[4]);
+    M5.Display.printf("Battery: %.0f mV\r\n", sensors[4]);
     break;
 
   default:
