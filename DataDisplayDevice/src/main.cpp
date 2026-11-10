@@ -53,7 +53,7 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 const String status_request = "STATUS_REQUEST";
 
 const int MENU_SIZE = 5; // THALB
-const int AXIS = 3; // x, y, z
+const int AXIS = 3;      // x, y, z
 
 bool menuEnabled[MENU_SIZE] = {
     true, // Display Temperature
@@ -65,8 +65,8 @@ bool menuEnabled[MENU_SIZE] = {
 
 int selectedPage = 0;
 
-double sensors[MENU_SIZE] = { 0 };
-double accelerometer[AXIS] = { 0 };
+double sensors[MENU_SIZE] = {0};
+double accelerometer[AXIS] = {0};
 
 // Function Prototypes
 void read_button_data(void);
@@ -192,39 +192,30 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   // Check which device is sending a message
   if (topicStr.indexOf("DeviceController") >= 0)
   {
-    // Check to make sure the message is for our device D
-    if (message[0] == 'D')
+    // Check to make sure the message is for our device D and its either the status to sync or a 3 char toggle command
+    if (message[0] == 'D' && 
+      (message.length() == 6 || message.length() == 3))
     {
       // Parse and update menuEnabled values appropraitely
-      Serial.printf("Before: %c", (menuEnabled[0] ? 'T' : 'F'));
-      Serial.println("-----------------------");
       updateDisplayState(message);
 
       // Swap off of current display if current display's sensor was just disabled
       if (selectedPage != 0 && !menuEnabled[selectedPage - 1])
       {
-        // M5.Display.clear();
-        // M5.Display.setCursor(0, 40);
-        // M5.Display.println("Sensor disabled!");
-        // M5.Display.println("Switching page...");
-        // delay(1500); // Busy delay - will hold program, maybe use millis?
         checkPage();
         drawMenu();
       }
-
-      Serial.printf("After: %c", (menuEnabled[0] ? 'T' : 'F'));
-      Serial.println("-----------------------");
     }
     else if (message == status_request)
     {
       // Send current display state
       sendDisplayState();
-    }// Else DeviceController message is for the AcquisitionDevice and we don't need to do anything
+    } // Else DeviceController message is for the AcquisitionDevice and we don't need to do anything
   } // Else the message is from the AcquisitionDevice to use and is larger than a 1 char string - Make sure its the readings and not the status message or request
-  else if (topicStr.indexOf("AcquisitionDevice") >= 0 && 
-          message != status_request &&                      // Make sure its not a status request
-          message.length() > 1 &&                           // Make sure the length is greater than 1
-          (message[1] != 'T' && message[1] != 'F'))         // Make sure its not the acquisition's current state
+  else if (topicStr.indexOf("AcquisitionDevice") >= 0 &&
+           message != status_request &&              // Make sure its not a status request
+           message.length() > 1 &&                   // Make sure the length is greater than 1
+           (message[1] != 'T' && message[1] != 'F')) // Make sure its not the acquisition's current state
   {
     Serial.println("Acquisition Device sent sensor data");
     Serial.println("-----------------------");
@@ -244,45 +235,45 @@ void parseSensorData(String message)
   // Switch case for every type of sensor
   switch (sensor)
   {
-    case 'T': // Store temperature
-      sensors[0] = reading;
-      break;
-    
-    case 'H': // Store humidity
-      sensors[1] = reading;
-      break;
+  case 'T': // Store temperature
+    sensors[0] = reading;
+    break;
 
-    case 'A': // Store accelerometers 3 axis values
+  case 'H': // Store humidity
+    sensors[1] = reading;
+    break;
+
+  case 'A': // Store accelerometers 3 axis values
+  {
+    // Parse the 3 axis values by finding the commas
+    int firstComma = message.indexOf(',');
+    int secondComma = message.indexOf(',', firstComma + 1);
+
+    // Check if indexOf failed to find the commas
+    if (firstComma == -1 || secondComma == -1)
     {
-      // Parse the 3 axis values by finding the commas
-      int firstComma = message.indexOf(',');
-      int secondComma = message.indexOf(',', firstComma + 1);
-
-      // Check if indexOf failed to find the commas
-      if (firstComma == -1 || secondComma == -1)
-      {
-        Serial.println("Invalid accelerometer data");
-        break;
-      }
-
-      // Assign xyz values
-      accelerometer[0] = message.substring(1, firstComma).toDouble();
-      accelerometer[1] = message.substring(firstComma + 1, secondComma).toDouble();
-      accelerometer[2] = message.substring(secondComma + 1).toDouble();
-
+      Serial.println("Invalid accelerometer data");
       break;
     }
 
-    case 'L': // Store altitude
-      sensors[3] = reading;
-      break;
+    // Assign xyz values
+    accelerometer[0] = message.substring(1, firstComma).toDouble();
+    accelerometer[1] = message.substring(firstComma + 1, secondComma).toDouble();
+    accelerometer[2] = message.substring(secondComma + 1).toDouble();
 
-    case 'B': // Store battery
-      sensors[4] = reading;
-      break;
+    break;
+  }
 
-    default:
-      break;
+  case 'L': // Store altitude
+    sensors[3] = reading;
+    break;
+
+  case 'B': // Store battery
+    sensors[4] = reading;
+    break;
+
+  default:
+    break;
   }
 }
 
@@ -317,13 +308,28 @@ void read_button_data(void)
 
 void updateDisplayState(String message)
 {
-  if (message.length() == 6 &&
-      message[0] == 'D')
+  if (message.length() == 6)
   {
     for (int i = 0; i < MENU_SIZE; i++)
     {
       menuEnabled[i] =
           (message[i + 1] == 'T');
+    }
+  }
+  else if (message.length() == 3)
+  {
+    // Declare and initialize a String to hold our predefined sensor order
+    String sensorOrder = "THALB";
+
+    int index = sensorOrder.indexOf(message[1]);
+
+    // Check to make sure indexOf returned a valid index and that our comand from the controller is a true or false
+    if (index >= 0 && index < MENU_SIZE &&
+        (message[2] == 'T' || message[2] == 'F'))
+    {
+      // Toggle that menu/sensor
+      menuEnabled[index] =
+          (message[2] == 'T');
     }
   }
 }
